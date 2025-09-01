@@ -10,35 +10,35 @@ The AI Crypto Trading Agent is a military-grade, security-first cryptocurrency t
 ┌─────────────────────────────────────────────────────────────────┐
 │                    AI Crypto Trading Agent                      │
 ├─────────────────────────────────────────────────────────────────┤
-│  Security Layer (Military-Grade Protection)                    │
-│  ├── Threat Detection Engine                                   │
-│  ├── Intrusion Prevention System                               │
-│  ├── Encryption & Key Management                               │
-│  └── Incident Response System                                  │
+│  Security Layer (Military-Grade Protection)                     │
+│  ├── Threat Detection Engine                                    │
+│  ├── Intrusion Prevention System                                │
+│  ├── Encryption & Key Management                                │
+│  └── Incident Response System                                   │
 ├─────────────────────────────────────────────────────────────────┤
-│  Trading Engine Core                                           │
-│  ├── Strategy Engine (MA, RSI, MACD, Fibonacci)               │
-│  ├── Risk Management System                                    │
-│  ├── Position Manager                                          │
-│  └── Order Execution Engine                                    │
+│  Trading Engine Core                                            │
+│  ├── Strategy Engine (MA, RSI, MACD, Fibonacci)                 │
+│  ├── Risk Management System                                     │
+│  ├── Position Manager                                           │
+│  └── Order Execution Engine                                     │
 ├─────────────────────────────────────────────────────────────────┤
-│  AI & Analytics Layer                                          │
-│  ├── LLM Integration (Optimized for i5/12GB)                  │
-│  ├── Sentiment Analysis Engine                                 │
-│  ├── Market Data Processor                                     │
-│  └── Performance Analytics                                     │
+│  AI & Analytics Layer                                           │
+│  ├── LLM Integration (Optimized for i5/12GB)                    │
+│  ├── Sentiment Analysis Engine                                  │
+│  ├── Market Data Processor                                      │
+│  └── Performance Analytics                                      │
 ├─────────────────────────────────────────────────────────────────┤
-│  Communication Layer                                           │
-│  ├── SSH Tunnel Manager (Oracle Free Tier)                    │
-│  ├── Gate.io API Client                                        │
-│  ├── Notification System (Email/Telegram)                      │
-│  └── Dashboard API                                             │
+│  Communication Layer                                            │
+│  ├── SSH Tunnel Manager (Oracle Free Tier)                      │
+│  ├── Gate.io API Client                                         │
+│  ├── Notification System (Email/Telegram)                       │
+│  └── Dashboard API                                              │
 ├─────────────────────────────────────────────────────────────────┤
-│  Infrastructure Layer                                          │
-│  ├── System Monitor (Intel NUC)                               │
-│  ├── Database Layer                                            │
-│  ├── Logging & Audit System                                    │
-│  └── Backup & Recovery                                         │
+│  Infrastructure Layer                                           │
+│  ├── System Monitor (Intel NUC)                                 │
+│  ├── Database Layer                                             │
+│  ├── Logging & Audit System                                     │
+│  └── Backup & Recovery                                          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -161,8 +161,8 @@ The AI Crypto Trading Agent is a military-grade, security-first cryptocurrency t
 ┌─────────────────────────────────────┐
 │        LLM Engine                   │
 ├─────────────────────────────────────┤
-│ • Model: Llama-3.2-3B-Instruct     │
-│ • Hardware: Intel i5 + 12GB RAM    │
+│ • Model: Llama-3.2-3B-Instruct      │
+│ • Hardware: Intel i5 + 12GB RAM     │
 │ • Optimization: Quantization        │
 │ • Features: Market Analysis         │
 │ • Adaptation: Continuous Learning   │
@@ -207,7 +207,7 @@ The AI Crypto Trading Agent is a military-grade, security-first cryptocurrency t
 │ • Auto-reconnection                 │
 │ • Health Monitoring                 │
 │ • Load Balancing                    │
-│ • Security Validation              │
+│ • Security Validation               │
 └─────────────────────────────────────┘
 ```
 
@@ -310,7 +310,7 @@ System Health → Trend Analysis → Recommendations → Auto-tuning → Monitor
 ┌─────────────────────────────────────┐
 │         Intel NUC                   │
 ├─────────────────────────────────────┤
-│ • CPU: Intel i5 (4 cores)          │
+│ • CPU: Intel i5 (4 cores)           │
 │ • RAM: 12GB DDR4                    │
 │ • Storage: 256GB M.2 SSD            │
 │ • Network: Gigabit + Wireless       │
