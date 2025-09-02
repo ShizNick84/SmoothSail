@@ -8,14 +8,17 @@
   - Test deployment script on clean Ubuntu system
   - _Requirements: 1.1, 3.1, 3.2_
 
-- [ ] 1.1 Create Ubuntu Deployment Script
+
+- [x] 1.1 Create Ubuntu Deployment Script
+
   - Write shell script to install Node.js, PostgreSQL, and system dependencies
   - Create service user and directory structure setup
   - Implement SSH key configuration for Oracle Cloud access
   - Add system security hardening (firewall, fail2ban)
   - _Requirements: 3.1, 3.2, 3.3_
 
-- [ ] 1.2 Create Environment Configuration Template
+- [-] 1.2 Create Environment Configuration Template
+
   - Create .env template specific to Intel NUC deployment
   - Configure database connection for local PostgreSQL
   - Set up SSH tunnel configuration for Oracle Cloud
