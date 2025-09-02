@@ -18,36 +18,74 @@ export class MovingAverageStrategy {
    * Calculate Simple Moving Average (SMA)
    * @param prices Array of price values
    * @param period Number of periods for calculation
-   * @returns SMA value or null if insufficient data
+   * @returns Array of SMA values or null if insufficient data
    */
-  public calculateSMA(prices: number[], period: number): number | null {
+  public calculateSMA(prices: number[], period: number): (number | null)[] | null {
+    if (prices.length === 0) {
+      return [];
+    }
+
     if (prices.length < period) {
       return null;
     }
 
-    const sum = prices.slice(-period).reduce((acc, price) => acc + price, 0);
-    return sum / period;
+    if (prices.length === 1) {
+      return [prices[0]];
+    }
+
+    const result: (number | null)[] = [];
+    
+    for (let i = 0; i < prices.length; i++) {
+      if (i < period - 1) {
+        result.push(null);
+      } else {
+        const sum = prices.slice(i - period + 1, i + 1).reduce((acc, price) => acc + price, 0);
+        result.push(sum / period);
+      }
+    }
+
+    return result;
   }
 
   /**
    * Calculate Exponential Moving Average (EMA)
    * @param prices Array of price values
    * @param period Number of periods for calculation
-   * @returns EMA value or null if insufficient data
+   * @returns Array of EMA values or null if insufficient data
    */
-  public calculateEMA(prices: number[], period: number): number | null {
+  public calculateEMA(prices: number[], period: number): (number | null)[] | null {
+    if (prices.length === 0) {
+      return [];
+    }
+
     if (prices.length < period) {
       return null;
     }
 
-    const multiplier = 2 / (period + 1);
-    let ema = prices[0];
-
-    for (let i = 1; i < prices.length; i++) {
-      ema = (prices[i] * multiplier) + (ema * (1 - multiplier));
+    if (prices.length === 1) {
+      return [prices[0]];
     }
 
-    return ema;
+    const result: (number | null)[] = [];
+    const multiplier = 2 / (period + 1);
+    
+    // Fill initial values with null
+    for (let i = 0; i < period - 1; i++) {
+      result.push(null);
+    }
+    
+    // Calculate first EMA as SMA
+    const firstSMA = prices.slice(0, period).reduce((sum, price) => sum + price, 0) / period;
+    result.push(firstSMA);
+    
+    // Calculate subsequent EMAs
+    let ema = firstSMA;
+    for (let i = period; i < prices.length; i++) {
+      ema = (prices[i] * multiplier) + (ema * (1 - multiplier));
+      result.push(ema);
+    }
+
+    return result;
   }
 
   /**
@@ -64,9 +102,12 @@ export class MovingAverageStrategy {
   ): { fastEMA: number | null; slowEMA: number | null } {
     const prices = marketData.map(data => data.close);
     
+    const fastEMAArray = this.calculateEMA(prices, fastPeriod);
+    const slowEMAArray = this.calculateEMA(prices, slowPeriod);
+    
     return {
-      fastEMA: this.calculateEMA(prices, fastPeriod),
-      slowEMA: this.calculateEMA(prices, slowPeriod)
+      fastEMA: fastEMAArray && fastEMAArray.length > 0 ? fastEMAArray[fastEMAArray.length - 1] : null,
+      slowEMA: slowEMAArray && slowEMAArray.length > 0 ? slowEMAArray[slowEMAArray.length - 1] : null
     };
   }
 
@@ -82,13 +123,13 @@ export class MovingAverageStrategy {
     fastPeriod: number = this.defaultFastPeriod,
     slowPeriod: number = this.defaultSlowPeriod
   ): MovingAverageSignal | null {
-    if (marketData.length < Math.max(fastPeriod, slowPeriod) + 1) {
+    if (!Array.isArray(marketData) || marketData.length < Math.max(fastPeriod, slowPeriod) + 1) {
       return null;
     }
 
     // Calculate current EMAs
-    const currentData = marketData.slice(0, -1);
-    const previousData = marketData.slice(0, -2);
+    const currentData = marketData.slice(0, marketData.length);
+    const previousData = marketData.slice(0, marketData.length - 1);
 
     const current = this.calculateEMACrossover(currentData, fastPeriod, slowPeriod);
     const previous = this.calculateEMACrossover(previousData, fastPeriod, slowPeriod);
@@ -187,10 +228,25 @@ export class MovingAverageStrategy {
     fastPeriod: number = this.defaultFastPeriod,
     slowPeriod: number = this.defaultSlowPeriod
   ): TradingSignal | null {
+    if (!Array.isArray(marketData) || marketData.length === 0) {
+      return null;
+    }
+
     const crossover = this.detectCrossover(marketData, fastPeriod, slowPeriod);
     
     if (!crossover || !crossover.crossover || crossover.crossover.type === 'NONE') {
-      return null;
+      return {
+        id: `ma_hold_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        symbol: marketData[marketData.length - 1].symbol,
+        type: 'HOLD',
+        strength: 0,
+        confidence: 50,
+        indicators: [`EMA_${fastPeriod}`, `EMA_${slowPeriod}`],
+        reasoning: 'No clear crossover signal detected',
+        riskReward: 1.0,
+        timestamp: marketData[marketData.length - 1].timestamp,
+        metadata: {}
+      };
     }
 
     const latestData = marketData[marketData.length - 1];
@@ -318,5 +374,80 @@ export class MovingAverageStrategy {
 
     // Convert to 0-100 scale
     return Math.max(0, Math.min(100, 50 + (alignment * 1000)));
+  }
+
+  /**
+   * Confirm signal with volume analysis
+   * @param volumes Array of volume data
+   * @param currentIndex Current index to analyze
+   * @returns True if volume confirms the signal
+   */
+  public confirmWithVolume(volumes: number[], currentIndex: number): boolean {
+    if (volumes.length < 5 || currentIndex < 4) {
+      return false;
+    }
+
+    const currentVolume = volumes[currentIndex];
+    const averageVolume = volumes.slice(currentIndex - 4, currentIndex)
+      .reduce((sum, vol) => sum + vol, 0) / 4;
+
+    return currentVolume >= (averageVolume * this.volumeConfirmationThreshold);
+  }
+
+  /**
+   * Calculate signal strength based on price movements and crossover type
+   * @param prices Array of price data
+   * @param crossoverType Type of crossover detected
+   * @returns Signal strength (0-100)
+   */
+  public calculateSignalStrength(prices: number[], crossoverType: string): number {
+    if (crossoverType === 'INVALID' || prices.length < 5) {
+      return 0;
+    }
+
+    const recentPrices = prices.slice(-5);
+    const priceRange = Math.max(...recentPrices) - Math.min(...recentPrices);
+    const averagePrice = recentPrices.reduce((sum, price) => sum + price, 0) / recentPrices.length;
+    
+    // Calculate volatility as a percentage
+    const volatility = (priceRange / averagePrice) * 100;
+    
+    // Higher volatility generally means stronger signals
+    // Scale to 0-100 range
+    const strength = Math.min(volatility * 10, 100);
+    
+    return Math.round(strength);
+  }
+
+  /**
+   * Constructor with configuration validation
+   * @param config Configuration object
+   */
+  constructor(config?: { fastPeriod?: number; slowPeriod?: number }) {
+    if (config) {
+      if (config.fastPeriod !== undefined) {
+        if (config.fastPeriod <= 0) {
+          throw new Error('Fast period must be greater than 0');
+        }
+        // Override default if provided
+        (this as any).defaultFastPeriod = config.fastPeriod;
+      }
+      
+      if (config.slowPeriod !== undefined) {
+        if (config.slowPeriod <= 0) {
+          throw new Error('Slow period must be greater than 0');
+        }
+        // Override default if provided
+        (this as any).defaultSlowPeriod = config.slowPeriod;
+      }
+      
+      // Validate that fast period is less than slow period
+      const fastPeriod = config.fastPeriod || this.defaultFastPeriod;
+      const slowPeriod = config.slowPeriod || this.defaultSlowPeriod;
+      
+      if (fastPeriod >= slowPeriod) {
+        throw new Error('Fast period must be less than slow period');
+      }
+    }
   }
 }

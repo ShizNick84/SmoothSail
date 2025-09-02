@@ -79,7 +79,7 @@ describe('Real Data Validation', () => {
       const validation = await dataFetcher.validateForBacktesting(mockData, config);
       
       expect(validation.isValid).toBe(false);
-      expect(validation.errors).toContain(expect.stringContaining('Mock data detected'));
+      expect(validation.errors.some(error => error.includes('Mock data detected'))).toBe(true);
     });
 
     test('should accept real Gate.io data', async () => {
@@ -359,7 +359,7 @@ describe('Real Data Validation', () => {
       const validation = await dataFetcher.validateForBacktesting(insufficientData, config);
       
       expect(validation.isValid).toBe(false);
-      expect(validation.errors).toContain(expect.stringContaining('Insufficient data points'));
+      expect(validation.errors).toContainEqual(expect.stringContaining('Insufficient data points'));
     });
 
     test('should calculate data integrity score', async () => {

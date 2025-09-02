@@ -580,6 +580,115 @@ export class AuditService {
   }
 
   /**
+   * Log security event for audit trail
+   * Creates audit entry for security-related events
+   * 
+   * @param event - Security event details
+   * @returns Promise<void>
+   */
+  public async logSecurityEvent(event: {
+    eventType: string;
+    actor: string;
+    resource: string;
+    action: string;
+    result: 'SUCCESS' | 'FAILURE' | 'PARTIAL';
+    ipAddress?: string;
+    auditData?: Record<string, any>;
+  }): Promise<void> {
+    const auditEntry: AuditLogEntry = {
+      auditId: this.generateAuditId(),
+      eventType: event.eventType,
+      actor: event.actor,
+      resource: event.resource,
+      action: event.action,
+      result: event.result,
+      ipAddress: event.ipAddress,
+      auditData: event.auditData,
+      timestamp: new Date()
+    };
+
+    await this.createAuditEntry(auditEntry);
+  }
+
+  /**
+   * Log API request for audit trail
+   * Creates audit entry for API requests
+   * 
+   * @param request - API request details
+   * @returns Promise<void>
+   */
+  public async logAPIRequest(request: {
+    method: string;
+    url: string;
+    headers?: Record<string, string>;
+    body?: any;
+    userId?: string;
+    ipAddress?: string;
+  }): Promise<void> {
+    const auditEntry: AuditLogEntry = {
+      auditId: this.generateAuditId(),
+      eventType: 'API_REQUEST',
+      actor: request.userId || 'SYSTEM',
+      resource: request.url,
+      action: request.method,
+      result: 'SUCCESS',
+      ipAddress: request.ipAddress,
+      auditData: {
+        headers: request.headers,
+        body: request.body
+      },
+      timestamp: new Date()
+    };
+
+    await this.createAuditEntry(auditEntry);
+  }
+
+  /**
+   * Log API response for audit trail
+   * Creates audit entry for API responses
+   * 
+   * @param response - API response details
+   * @returns Promise<void>
+   */
+  public async logAPIResponse(response: {
+    statusCode: number;
+    method: string;
+    url: string;
+    responseTime: number;
+    userId?: string;
+    error?: string;
+  }): Promise<void> {
+    const auditEntry: AuditLogEntry = {
+      auditId: this.generateAuditId(),
+      eventType: 'API_RESPONSE',
+      actor: response.userId || 'SYSTEM',
+      resource: response.url,
+      action: response.method,
+      result: response.statusCode < 400 ? 'SUCCESS' : 'FAILURE',
+      auditData: {
+        statusCode: response.statusCode,
+        responseTime: response.responseTime,
+        error: response.error
+      },
+      timestamp: new Date()
+    };
+
+    await this.createAuditEntry(auditEntry);
+  }
+
+  /**
+   * Generate unique audit ID
+   * Creates a unique identifier for audit entries
+   * 
+   * @returns string Unique audit ID
+   */
+  private generateAuditId(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2);
+    return `audit_${timestamp}_${random}`;
+  }
+
+  /**
    * Get audit service status
    * Returns current status for monitoring
    * 

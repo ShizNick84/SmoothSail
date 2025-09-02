@@ -1,8 +1,7 @@
 /**
- * Trading Strategy Types and Interfaces
+ * Trading Strategy Types
  * 
- * This module defines the core types and interfaces for the trading strategy engine.
- * All strategies implement these interfaces to ensure consistency and interoperability.
+ * Common interfaces and types used across trading strategies
  */
 
 export interface MarketData {
@@ -15,37 +14,29 @@ export interface MarketData {
   volume: number;
 }
 
-export interface TechnicalIndicator {
-  name: string;
-  value: number;
-  timestamp: Date;
-  parameters: Record<string, any>;
-}
-
 export interface TradingSignal {
   id: string;
   symbol: string;
   type: 'BUY' | 'SELL' | 'HOLD';
-  strength: number; // 0-100
-  confidence: number; // 0-100
+  strength: number;
+  confidence: number;
   indicators: string[];
   reasoning: string;
   riskReward: number;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata: Record<string, any>;
 }
 
-export interface SignalConfidence {
-  overall: number; // 0-100
-  technical: number; // 0-100
-  volume: number; // 0-100
-  momentum: number; // 0-100
-  factors: string[];
-}
-
-export interface MovingAverageSignal extends TechnicalIndicator {
-  name: 'SMA' | 'EMA';
+export interface MovingAverageSignal {
+  name: string;
+  value: number;
+  timestamp: Date;
   period: number;
+  parameters: {
+    fastPeriod: number;
+    slowPeriod: number;
+    slowEMA: number;
+  };
   crossover?: {
     type: 'GOLDEN_CROSS' | 'DEATH_CROSS' | 'NONE';
     strength: number;
@@ -53,19 +44,23 @@ export interface MovingAverageSignal extends TechnicalIndicator {
   };
 }
 
-export interface RSISignal extends TechnicalIndicator {
-  name: 'RSI';
-  period: number;
-  overbought: boolean;
-  oversold: boolean;
-  divergence?: {
-    type: 'BULLISH' | 'BEARISH' | 'NONE';
-    strength: number;
-  };
+export interface SignalConfidence {
+  overall: number;
+  technical: number;
+  volume: number;
+  momentum: number;
+  factors: string[];
 }
 
-export interface MACDSignal extends TechnicalIndicator {
-  name: 'MACD';
+export interface MACDSignal {
+  name: string;
+  value: number;
+  timestamp: Date;
+  parameters: {
+    fastPeriod: number;
+    slowPeriod: number;
+    signalPeriod: number;
+  };
   macd: number;
   signal: number;
   histogram: number;
@@ -75,71 +70,29 @@ export interface MACDSignal extends TechnicalIndicator {
   };
 }
 
-export interface FibonacciLevels {
-  high: number;
-  low: number;
-  levels: {
-    '23.6': number;
-    '38.2': number;
-    '50.0': number;
-    '61.8': number;
-    '78.6': number;
-  };
-  support: number[];
-  resistance: number[];
-}
-
-export interface BreakoutSignal extends TechnicalIndicator {
-  name: 'BREAKOUT';
-  direction: 'UP' | 'DOWN';
-  volumeConfirmed: boolean;
-  strength: number;
-  falseBreakoutProbability: number;
-}
-
-export interface HarmonizedSignal {
-  symbol: string;
+export interface RSISignal {
+  name: string;
+  value: number;
   timestamp: Date;
-  overallSignal: 'BUY' | 'SELL' | 'HOLD';
-  strength: number; // 0-100
-  confidence: number; // 0-100
-  indicators: TechnicalIndicator[];
-  weights: Record<string, number>;
-  conflicts: string[];
-  reasoning: string;
+  parameters: {
+    period: number;
+    overboughtLevel: number;
+    oversoldLevel: number;
+  };
+  condition: 'OVERBOUGHT' | 'OVERSOLD' | 'NEUTRAL';
 }
 
 export interface StrategyConfig {
-  name: string;
-  enabled: boolean;
-  weight: number; // 0-1 for harmonization
-  parameters: Record<string, any>;
+  fastPeriod?: number;
+  slowPeriod?: number;
+  signalPeriod?: number;
+  period?: number;
+  overboughtLevel?: number;
+  oversoldLevel?: number;
 }
 
-export interface BacktestResult {
-  strategy: string;
-  period: {
-    start: Date;
-    end: Date;
-  };
-  trades: number;
-  winRate: number;
-  totalReturn: number;
-  sharpeRatio: number;
-  maxDrawdown: number;
-  profitFactor: number;
-  averageWin: number;
-  averageLoss: number;
-  largestWin: number;
-  largestLoss: number;
-  consecutiveWins: number;
-  consecutiveLosses: number;
-}
-
-export interface StrategyPerformance {
-  accuracy: number;
-  profitability: number;
-  consistency: number;
-  riskAdjustedReturn: number;
-  drawdownRecovery: number;
+export interface StrategyResult {
+  signal: TradingSignal | null;
+  confidence: SignalConfidence;
+  indicators: Record<string, any>;
 }

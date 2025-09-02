@@ -7,13 +7,18 @@
  * Requirements: 25.7 - Security compliance testing and validation
  */
 
-import { encryptionService } from '@/security/encryption-service';
+import { EncryptionService } from '@/security/encryption-service';
 
 describe('Security Compliance Validation', () => {
+  let encryptionService: EncryptionService;
+
   beforeAll(() => {
     // Set up test environment
     process.env.NODE_ENV = 'test';
     process.env.MASTER_ENCRYPTION_KEY = 'a'.repeat(64); // 64 hex chars = 32 bytes
+    
+    // Initialize encryption service
+    encryptionService = new EncryptionService();
   });
 
   describe('Basic Compliance Tests', () => {

@@ -179,7 +179,7 @@ export function PortfolioOverview({ data, className = '' }: PortfolioOverviewPro
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center space-x-2">
-            <AnimatedEmoji emoji={TradingEmojis.wallet} animation="bounce" />
+            <AnimatedEmoji emoji={TradingEmojis.money} animation="bounce" />
             <span>Portfolio Overview</span>
           </h2>
           <p className="text-muted-foreground">Real-time portfolio performance and metrics</p>

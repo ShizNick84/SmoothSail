@@ -12,9 +12,28 @@ import { RiskMetrics } from '@/components/risk/risk-metrics';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { MobileGrid, MobileCard } from '@/components/mobile/mobile-layout';
 
+interface DashboardData {
+  portfolio: {
+    totalBalance: number;
+    dailyPnL: number;
+    totalPnL: number;
+    positions: number;
+  };
+  systemHealth: {
+    status: 'healthy' | 'warning' | 'critical';
+    uptime: string;
+    cpu: number;
+    memory: number;
+    storage: number;
+    temperature: number;
+    network: 'connected' | 'disconnected' | 'slow';
+    tunnelStatus: 'connected' | 'disconnected' | 'reconnecting';
+  };
+}
+
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [dashboardData, setDashboardData] = useState(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const { isMobile, isTablet } = useResponsive();
 
   useEffect(() => {
@@ -35,7 +54,10 @@ export default function DashboardPage() {
             uptime: '7d 14h 32m',
             cpu: 45,
             memory: 68,
+            storage: 75,
+            temperature: 65,
             network: 'connected',
+            tunnelStatus: 'connected',
           },
         });
       } catch (error) {

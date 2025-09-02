@@ -10,6 +10,9 @@ jest.mock('fs', () => ({
   promises: {
     stat: jest.fn(),
     access: jest.fn()
+  },
+  constants: {
+    R_OK: 4
   }
 }));
 

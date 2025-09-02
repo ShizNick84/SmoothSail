@@ -47,8 +47,9 @@ function generateSampleData(): ChartData[] {
   }
   
   return data;
-}/
-/ Custom tooltip component
+}
+
+// Custom tooltip component
 function CustomTooltip({ active, payload, label }: any) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;

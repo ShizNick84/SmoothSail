@@ -365,8 +365,8 @@ describe('Enhanced Security Testing Suite - Task 12.3 Complete Implementation', 
       expect(Array.isArray(dashboard.trendData)).toBe(true);
     });
   });
-});  d
-escribe('2. Advanced Penetration Testing for API Endpoints', () => {
+
+  describe('2. Advanced Penetration Testing for API Endpoints', () => {
     it('should test all configured API endpoints comprehensively', async () => {
       const result = await penetrationTesting.executeSecurityTestSuite();
 
@@ -378,3 +378,19 @@ escribe('2. Advanced Penetration Testing for API Endpoints', () => {
       expect(result.complianceScore).toBeGreaterThanOrEqual(0);
       expect(result.complianceScore).toBeLessThanOrEqual(100);
     });
+
+    it('should test for SQL injection vulnerabilities', async () => {
+      const sqlInjectionTest = await penetrationTesting.testSQLInjection();
+      
+      expect(sqlInjectionTest).toBeDefined();
+      expect(sqlInjectionTest.vulnerabilitiesFound).toBeDefined();
+    });
+
+    it('should test for XSS vulnerabilities', async () => {
+      const xssTest = await penetrationTesting.testXSS();
+      
+      expect(xssTest).toBeDefined();
+      expect(xssTest.vulnerabilitiesFound).toBeDefined();
+    });
+  });
+});

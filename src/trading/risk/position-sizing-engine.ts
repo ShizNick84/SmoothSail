@@ -52,11 +52,27 @@ export class PositionSizingEngine {
       request.existingPositions
     );
 
-    const finalPositionSize = volatilityAdjustedSize * correlationAdjustment;
+    let finalPositionSize = volatilityAdjustedSize * correlationAdjustment;
 
     // Calculate risk metrics
-    const riskAmount = Math.abs(request.entryPrice - request.stopLossPrice) * finalPositionSize;
-    const riskPercentage = (riskAmount / request.accountBalance) * 100;
+    const accountRiskAmount = request.accountBalance * (this.riskParameters.maxRiskPerTrade / 100);
+    let actualRiskAmount = Math.abs(request.entryPrice - request.stopLossPrice) * finalPositionSize;
+    let riskPercentage = (actualRiskAmount / request.accountBalance) * 100;
+
+    // Ensure we don't exceed max risk per trade due to adjustments
+    if (riskPercentage > this.riskParameters.maxRiskPerTrade) {
+      finalPositionSize = accountRiskAmount / Math.abs(request.entryPrice - request.stopLossPrice);
+      actualRiskAmount = Math.abs(request.entryPrice - request.stopLossPrice) * finalPositionSize;
+      riskPercentage = (actualRiskAmount / request.accountBalance) * 100;
+    }
+
+    // Also ensure position value doesn't exceed account balance
+    const positionValue = finalPositionSize * request.entryPrice;
+    if (positionValue > request.accountBalance) {
+      finalPositionSize = request.accountBalance / request.entryPrice;
+      actualRiskAmount = Math.abs(request.entryPrice - request.stopLossPrice) * finalPositionSize;
+      riskPercentage = (actualRiskAmount / request.accountBalance) * 100;
+    }
     const riskRewardRatio = this.calculateRiskRewardRatio(
       request.entryPrice,
       request.stopLossPrice,
@@ -73,7 +89,7 @@ export class PositionSizingEngine {
 
     return {
       positionSize: validation.approved ? finalPositionSize : 0,
-      riskAmount,
+      riskAmount: accountRiskAmount,
       riskPercentage,
       riskRewardRatio,
       confidenceAdjustedSize,
@@ -107,6 +123,11 @@ export class PositionSizingEngine {
    * Lower confidence = smaller position (down to 50% of base)
    */
   private applyConfidenceAdjustment(baseSize: number, confidence: number): number {
+    // Handle NaN confidence values
+    if (isNaN(confidence)) {
+      confidence = 50; // Default to neutral confidence
+    }
+    
     // Normalize confidence to 0-1 range
     const normalizedConfidence = Math.max(0, Math.min(100, confidence)) / 100;
     
@@ -122,6 +143,11 @@ export class PositionSizingEngine {
    * Lower volatility = larger position
    */
   private applyVolatilityAdjustment(baseSize: number, volatility: number): number {
+    // Handle invalid volatility values
+    if (isNaN(volatility) || !isFinite(volatility)) {
+      volatility = 0.2; // Default to moderate volatility
+    }
+    
     // Volatility adjustment factor (higher volatility reduces position size)
     const volatilityMultiplier = Math.max(0.3, 1 - (volatility * this.riskParameters.volatilityAdjustmentFactor));
     
@@ -248,10 +274,10 @@ export class PositionSizingEngine {
       rejectionReasons.push('Position size must be positive');
     }
 
-    // Check if position size is too large relative to account
+    // Check if position size is too large relative to account (allow up to 100% for crypto)
     const positionValue = positionSize * request.entryPrice;
     const positionPercentage = (positionValue / request.accountBalance) * 100;
-    if (positionPercentage > 50) {
+    if (positionPercentage > 100) {
       rejectionReasons.push(`Position value ${positionPercentage.toFixed(2)}% of account is too large`);
     }
 

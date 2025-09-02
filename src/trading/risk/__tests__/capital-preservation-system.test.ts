@@ -60,7 +60,7 @@ describe('CapitalPreservationSystem', () => {
     it('should monitor normal conditions without alerts', async () => {
       const result = await system.monitorCapitalPreservation(
         10000, // Current balance
-        basePositions,
+        [], // No positions to avoid correlation alerts
         50, // Daily P&L (positive)
         200, // Weekly P&L (positive)
         500 // Monthly P&L (positive)
@@ -73,11 +73,21 @@ describe('CapitalPreservationSystem', () => {
     });
 
     it('should detect warning level drawdown', async () => {
-      // Simulate account loss (from 10000 to 9400 = 6% drawdown)
+      // First establish a peak balance
+      await system.monitorCapitalPreservation(
+        10000,
+        basePositions,
+        0,
+        0,
+        0
+      );
+
+      // Then simulate account loss (from 10000 to 9400 = 6% drawdown)
+      // Keep daily loss under 2% limit (2% of 9400 = 188)
       const result = await system.monitorCapitalPreservation(
         9400,
         basePositions,
-        -600,
+        -180, // 1.8% daily loss (under 2% limit)
         -600,
         -600
       );
@@ -90,11 +100,21 @@ describe('CapitalPreservationSystem', () => {
     });
 
     it('should detect high drawdown and activate risk reduction', async () => {
-      // Simulate significant loss (from 10000 to 8800 = 12% drawdown)
+      // First establish a peak balance
+      await system.monitorCapitalPreservation(
+        10000,
+        basePositions,
+        0,
+        0,
+        0
+      );
+
+      // Then simulate significant loss (from 10000 to 8800 = 12% drawdown)
+      // Keep daily loss under 2% limit (2% of 8800 = 176)
       const result = await system.monitorCapitalPreservation(
         8800,
         basePositions,
-        -1200,
+        -170, // 1.9% daily loss (under 2% limit)
         -1200,
         -1200
       );
@@ -108,7 +128,16 @@ describe('CapitalPreservationSystem', () => {
     });
 
     it('should activate emergency stop on critical drawdown', async () => {
-      // Simulate critical loss (from 10000 to 8400 = 16% drawdown)
+      // First establish a peak balance
+      await system.monitorCapitalPreservation(
+        10000,
+        basePositions,
+        0,
+        0,
+        0
+      );
+
+      // Then simulate critical loss (from 10000 to 8400 = 16% drawdown)
       const result = await system.monitorCapitalPreservation(
         8400,
         basePositions,
@@ -261,7 +290,16 @@ describe('CapitalPreservationSystem', () => {
     });
 
     it('should not allow recovery when drawdown is still high', async () => {
-      // First trigger emergency mode
+      // First establish a peak balance
+      await system.monitorCapitalPreservation(
+        10000,
+        basePositions,
+        0,
+        0,
+        0
+      );
+
+      // Then trigger emergency mode
       await system.monitorCapitalPreservation(8400, basePositions, -1600, -1600, -1600);
 
       const drawdownStatus = {
@@ -339,13 +377,13 @@ describe('CapitalPreservationSystem', () => {
         -200
       );
 
-      expect(result.lossLimits.daily.limit).toBe(200); // 2% of 10000
+      expect(result.lossLimits.daily.limit).toBe(196); // 2% of 9800 (current balance)
       expect(result.lossLimits.daily.current).toBe(200);
       expect(result.lossLimits.daily.remaining).toBe(0);
 
-      expect(result.lossLimits.weekly.limit).toBe(500); // 5% of 10000
+      expect(result.lossLimits.weekly.limit).toBe(490); // 5% of 9800 (current balance)
       expect(result.lossLimits.weekly.current).toBe(200);
-      expect(result.lossLimits.weekly.remaining).toBe(300);
+      expect(result.lossLimits.weekly.remaining).toBe(290);
     });
 
     it('should handle positive P&L correctly', async () => {
@@ -377,6 +415,16 @@ describe('CapitalPreservationSystem', () => {
     });
 
     it('should handle very small account balance', async () => {
+      // First establish a peak balance
+      await system.monitorCapitalPreservation(
+        110,
+        [],
+        0,
+        0,
+        0
+      );
+
+      // Then simulate loss
       const result = await system.monitorCapitalPreservation(
         100, // Very small balance
         [],

@@ -72,7 +72,7 @@ describe('RiskRewardEnforcer', () => {
       expect(analysis.riskRewardRatio).toBeCloseTo(0.5, 1);
       expect(analysis.meetsMinimumRR).toBe(false);
       expect(analysis.approved).toBe(false);
-      expect(analysis.rejectionReasons).toContain(
+      expect(analysis.rejectionReasons).toContainEqual(
         expect.stringContaining('Risk-reward ratio')
       );
     });
@@ -142,7 +142,7 @@ describe('RiskRewardEnforcer', () => {
       const analysis = enforcer.analyzeRiskReward(highRiskProposal, marketConditions);
 
       expect(analysis.approved).toBe(false);
-      expect(analysis.rejectionReasons).toContain(
+      expect(analysis.rejectionReasons).toContainEqual(
         expect.stringContaining('Risk percentage')
       );
     });
@@ -158,7 +158,7 @@ describe('RiskRewardEnforcer', () => {
 
       // Low confidence with suboptimal RR should be rejected
       expect(analysis.approved).toBe(false);
-      expect(analysis.rejectionReasons).toContain(
+      expect(analysis.rejectionReasons).toContainEqual(
         expect.stringContaining('Low confidence')
       );
     });

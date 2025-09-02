@@ -65,19 +65,19 @@ module.exports = {
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        PORT: 3002
+        PORT: 3000
       },
       env_development: {
         NODE_ENV: 'development',
-        PORT: 3002
+        PORT: 3000
       },
       env_staging: {
         NODE_ENV: 'staging',
-        PORT: 3002
+        PORT: 3000
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 3002
+        PORT: 3000
       },
       // Logging
       error_file: './logs/pm2-dashboard-error.log',

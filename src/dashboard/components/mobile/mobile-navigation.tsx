@@ -25,13 +25,13 @@ const navTabs: NavTab[] = [
     id: 'dashboard',
     label: 'Home',
     icon: <Home className="h-5 w-5" />,
-    emoji: TradingEmojis.home,
+    emoji: TradingEmojis.chart,
   },
   {
     id: 'portfolio',
     label: 'Portfolio',
     icon: <Wallet className="h-5 w-5" />,
-    emoji: TradingEmojis.wallet,
+    emoji: TradingEmojis.money,
   },
   {
     id: 'trading',
@@ -50,7 +50,7 @@ const navTabs: NavTab[] = [
     id: 'profile',
     label: 'Profile',
     icon: <User className="h-5 w-5" />,
-    emoji: TradingEmojis.user,
+    emoji: TradingEmojis.robot,
   },
 ];
 

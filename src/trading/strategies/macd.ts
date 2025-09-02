@@ -15,6 +15,43 @@ export class MACDStrategy {
   private readonly signalPeriod = 9;
 
   /**
+   * Constructor with configuration validation
+   * @param config Configuration object
+   */
+  constructor(config?: { fastPeriod?: number; slowPeriod?: number; signalPeriod?: number }) {
+    if (config) {
+      if (config.fastPeriod !== undefined) {
+        if (config.fastPeriod <= 0) {
+          throw new Error('Fast period must be greater than 0');
+        }
+        (this as any).fastPeriod = config.fastPeriod;
+      }
+      
+      if (config.slowPeriod !== undefined) {
+        if (config.slowPeriod <= 0) {
+          throw new Error('Slow period must be greater than 0');
+        }
+        (this as any).slowPeriod = config.slowPeriod;
+      }
+      
+      if (config.signalPeriod !== undefined) {
+        if (config.signalPeriod <= 0) {
+          throw new Error('Signal period must be greater than 0');
+        }
+        (this as any).signalPeriod = config.signalPeriod;
+      }
+      
+      // Validate that fast period is less than slow period
+      const fastPeriod = config.fastPeriod || this.fastPeriod;
+      const slowPeriod = config.slowPeriod || this.slowPeriod;
+      
+      if (fastPeriod >= slowPeriod) {
+        throw new Error('Fast period must be less than slow period');
+      }
+    }
+  }
+
+  /**
    * Calculate Exponential Moving Average
    * @param prices Array of prices
    * @param period EMA period

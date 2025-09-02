@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
-import { promises as fs } from 'fs';
+import { promises as fs, constants as fsConstants } from 'fs';
 import { join } from 'path';
 import { Logger } from '../core/logging/logger';
 import { EncryptionService } from '../security/encryption-service';
@@ -10,28 +10,34 @@ import { EncryptionService } from '../security/encryption-service';
  * Defines all parameters needed to establish a secure SSH tunnel to Oracle Free Tier
  */
 export interface TunnelConfig {
-  /** Oracle Free Tier IP address */
-  oracleIP: string;
+  /** Tunnel name identifier */
+  name: string;
+  /** Remote host to tunnel to */
+  remoteHost: string;
+  /** Remote port to tunnel to */
+  remotePort: number;
+  /** Local port for tunnel */
+  localPort: number;
+  /** SSH host (Oracle Free Tier IP) */
+  sshHost: string;
   /** SSH port (default: 22) */
   sshPort: number;
   /** SSH username for Oracle instance */
-  username: string;
+  sshUsername: string;
   /** Path to private key file */
-  privateKeyPath: string;
-  /** Local port for tunnel */
-  localPort: number;
-  /** Remote port on Oracle instance */
-  remotePort: number;
-  /** Enable SSH keep-alive */
-  keepAlive: boolean;
+  privateKeyPath?: string;
+  /** Private key content */
+  privateKey?: string;
+  /** Maximum retry attempts */
+  maxRetries: number;
+  /** Retry delay in milliseconds */
+  retryDelay: number;
+  /** Health check interval in milliseconds */
+  healthCheckInterval: number;
   /** Enable SSH compression */
   compression: boolean;
-  /** Connection timeout in seconds */
-  connectionTimeout: number;
-  /** Server alive interval in seconds */
-  serverAliveInterval: number;
-  /** Maximum server alive count misses */
-  serverAliveCountMax: number;
+  /** Enable SSH keep-alive */
+  keepAlive: boolean;
 }
 
 /**
@@ -90,45 +96,24 @@ export interface TunnelStats {
  */
 export class SSHTunnelManager extends EventEmitter {
   private logger: Logger;
-  private encryptionService: EncryptionService;
   private connections: Map<string, TunnelConnection>;
-  private defaultConfig: Partial<TunnelConfig>;
 
-  constructor(
-    logger: Logger,
-    encryptionService: EncryptionService
-  ) {
+  constructor() {
     super();
-    this.logger = logger;
-    this.encryptionService = encryptionService;
+    this.logger = new Logger('SSHTunnelManager');
     this.connections = new Map();
     
-    // Default configuration for Oracle Free Tier
-    this.defaultConfig = {
-      oracleIP: '168.138.104.117',
-      sshPort: 22,
-      keepAlive: true,
-      compression: true,
-      connectionTimeout: 30,
-      serverAliveInterval: 60,
-      serverAliveCountMax: 3
-    };
-
     this.logger.info('SSH Tunnel Manager initialized');
   }
 
   /**
-   * Create a new SSH tunnel connection to Oracle Free Tier
-   * Implements secure authentication with private key management
-   * 
+   * Establish SSH tunnel connection
    * @param config - Tunnel configuration parameters
    * @returns Promise resolving to tunnel connection
    */
-  async createTunnel(config: Partial<TunnelConfig>): Promise<TunnelConnection> {
-    const fullConfig = { ...this.defaultConfig, ...config } as TunnelConfig;
-    
+  async establishTunnel(config: TunnelConfig): Promise<TunnelConnection> {
     // Validate configuration
-    await this.validateTunnelConfig(fullConfig);
+    await this.validateTunnelConfig(config);
     
     // Generate unique connection ID
     const connectionId = this.generateConnectionId();
@@ -136,7 +121,7 @@ export class SSHTunnelManager extends EventEmitter {
     // Create connection object
     const connection: TunnelConnection = {
       id: connectionId,
-      config: fullConfig,
+      config: config,
       process: null,
       state: TunnelState.DISCONNECTED,
       connectedAt: null,
@@ -153,46 +138,22 @@ export class SSHTunnelManager extends EventEmitter {
     // Store connection
     this.connections.set(connectionId, connection);
     
-    this.logger.info(`Created SSH tunnel connection: ${connectionId}`, {
-      oracleIP: fullConfig.oracleIP,
-      localPort: fullConfig.localPort,
-      remotePort: fullConfig.remotePort
-    });
-
-    return connection;
-  }
-
-  /**
-   * Establish SSH tunnel connection
-   * Implements connection authentication and state management
-   * 
-   * @param connectionId - Connection identifier
-   * @returns Promise resolving when connection is established
-   */
-  async establishTunnel(connectionId: string): Promise<void> {
-    const connection = this.connections.get(connectionId);
-    if (!connection) {
-      throw new Error(`Connection not found: ${connectionId}`);
-    }
-
-    if (connection.state === TunnelState.CONNECTED) {
-      this.logger.warn(`Tunnel already connected: ${connectionId}`);
-      return;
-    }
-
     try {
       // Update state to connecting
       this.updateConnectionState(connection, TunnelState.CONNECTING);
       
       // Validate private key exists and is accessible
-      await this.validatePrivateKey(connection.config.privateKeyPath);
+      if (config.privateKeyPath) {
+        await this.validatePrivateKey(config.privateKeyPath);
+      }
       
       // Build SSH command arguments
-      const sshArgs = this.buildSSHArguments(connection.config);
+      const sshArgs = this.buildSSHArguments(config);
       
       this.logger.info(`Establishing SSH tunnel: ${connectionId}`, {
-        command: 'ssh',
-        args: sshArgs.filter(arg => !arg.includes('IdentityFile')) // Don't log private key path
+        remoteHost: config.remoteHost,
+        localPort: config.localPort,
+        remotePort: config.remotePort
       });
 
       // Spawn SSH process
@@ -215,6 +176,8 @@ export class SSHTunnelManager extends EventEmitter {
       
       this.logger.info(`SSH tunnel established successfully: ${connectionId}`);
       this.emit('tunnelConnected', connection);
+
+      return connection;
 
     } catch (error) {
       this.logger.error(`Failed to establish SSH tunnel: ${connectionId}`, error);
@@ -318,7 +281,7 @@ export class SSHTunnelManager extends EventEmitter {
    */
   private async validateTunnelConfig(config: TunnelConfig): Promise<void> {
     const requiredFields: (keyof TunnelConfig)[] = [
-      'oracleIP', 'username', 'privateKeyPath', 'localPort', 'remotePort'
+      'name', 'remoteHost', 'sshHost', 'sshUsername', 'localPort', 'remotePort'
     ];
 
     for (const field of requiredFields) {
@@ -327,9 +290,9 @@ export class SSHTunnelManager extends EventEmitter {
       }
     }
 
-    // Validate IP address format
-    if (!this.isValidIP(config.oracleIP)) {
-      throw new Error(`Invalid Oracle IP address: ${config.oracleIP}`);
+    // Validate IP address format for SSH host
+    if (!this.isValidIP(config.sshHost)) {
+      throw new Error(`Invalid SSH host IP address: ${config.sshHost}`);
     }
 
     // Validate port ranges
@@ -358,7 +321,7 @@ export class SSHTunnelManager extends EventEmitter {
       }
 
       // Check file permissions (should be readable by owner only)
-      await fs.access(privateKeyPath, fs.constants.R_OK);
+      await fs.access(privateKeyPath, fsConstants.R_OK);
       
       this.logger.debug(`Private key validated: ${privateKeyPath}`);
       
@@ -379,13 +342,17 @@ export class SSHTunnelManager extends EventEmitter {
       '-T', // Disable pseudo-terminal allocation
       '-o', 'StrictHostKeyChecking=no', // Accept new host keys
       '-o', 'UserKnownHostsFile=/dev/null', // Don't save host keys
-      '-o', `ConnectTimeout=${config.connectionTimeout}`,
-      '-o', `ServerAliveInterval=${config.serverAliveInterval}`,
-      '-o', `ServerAliveCountMax=${config.serverAliveCountMax}`,
-      '-i', config.privateKeyPath, // Identity file
+      '-o', 'ConnectTimeout=30',
+      '-o', 'ServerAliveInterval=60',
+      '-o', 'ServerAliveCountMax=3',
       '-p', config.sshPort.toString(), // SSH port
-      '-L', `${config.localPort}:localhost:${config.remotePort}`, // Local port forwarding
+      '-L', `${config.localPort}:${config.remoteHost}:${config.remotePort}`, // Local port forwarding
     ];
+
+    // Add private key
+    if (config.privateKeyPath) {
+      args.push('-i', config.privateKeyPath);
+    }
 
     // Add compression if enabled
     if (config.compression) {
@@ -398,7 +365,7 @@ export class SSHTunnelManager extends EventEmitter {
     }
 
     // Add connection target
-    args.push(`${config.username}@${config.oracleIP}`);
+    args.push(`${config.sshUsername}@${config.sshHost}`);
 
     return args;
   }
@@ -510,6 +477,24 @@ export class SSHTunnelManager extends EventEmitter {
   private isValidIP(ip: string): boolean {
     const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
     return ipRegex.test(ip);
+  }
+
+  /**
+   * Get connection status for all tunnels
+   */
+  async getConnectionStatus(): Promise<any> {
+    const connections = Array.from(this.connections.values());
+    return {
+      totalConnections: connections.length,
+      activeConnections: connections.filter(c => c.state === TunnelState.CONNECTED).length,
+      connections: connections.map(c => ({
+        id: c.id,
+        name: c.config.name,
+        state: c.state,
+        connectedAt: c.connectedAt,
+        lastActivity: c.lastActivity
+      }))
+    };
   }
 
   /**

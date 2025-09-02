@@ -385,7 +385,7 @@ export function DynamicIcon({
       <AnimatedEmoji
         emoji={config.emoji!}
         animation={animate ? (config.animation as any) : undefined}
-        size={size}
+        size={size === 'xs' ? 'sm' : size}
         className={baseClasses}
         onClick={onClick}
       />

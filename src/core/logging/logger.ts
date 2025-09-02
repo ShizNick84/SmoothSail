@@ -85,6 +85,7 @@ class Logger {
   private auditLogger: winston.Logger;
   private securityLogger: winston.Logger;
   private tradingLogger: winston.Logger;
+  private componentName: string;
   
   /** Sensitive data patterns to sanitize from logs */
   private static readonly SENSITIVE_PATTERNS = [
@@ -97,7 +98,8 @@ class Logger {
     /\b[A-Za-z0-9]{32,}\b/g, // Potential API keys or hashes
   ];
 
-  constructor() {
+  constructor(componentName?: string) {
+    this.componentName = componentName || 'Application';
     // Ensure log directories exist
     this.ensureLogDirectories();
     
@@ -447,6 +449,7 @@ class Logger {
   private enrichMetadata(meta?: LogMetadata): LogMetadata {
     return {
       ...meta,
+      component: meta?.component || this.componentName,
       pid: process.pid,
       hostname: require('os').hostname(),
       nodeVersion: process.version,
@@ -503,6 +506,9 @@ class Logger {
 
 // Create and export singleton logger instance
 export const logger = new Logger();
+
+// Export the Logger class for tests and custom instances
+export { Logger };
 
 // Export types for use in other modules
 export type { LogMetadata, AuditLogEntry };

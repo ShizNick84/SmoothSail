@@ -287,8 +287,8 @@ describe('Comprehensive Security Testing Suite - Task 12.3', () => {
       expect(Array.isArray(dashboard.trendData)).toBe(true);
     });
   });
-});  describ
-e('2. Penetration Testing for API Endpoints', () => {
+
+  describe('2. Penetration Testing for API Endpoints', () => {
     it('should test all configured API endpoints', async () => {
       const result = await penetrationTesting.executeSecurityTestSuite();
 

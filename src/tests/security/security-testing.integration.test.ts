@@ -22,3 +22,16 @@ describe('Security Testing Integration', () => {
   let logger: Logger;
   let encryptionService: EncryptionService;
   let threatDetection: ThreatDetectionEngine;
+
+  beforeEach(async () => {
+    logger = new Logger('SecurityTestingIntegration');
+    encryptionService = new EncryptionService();
+    threatDetection = new ThreatDetectionEngine();
+  });
+
+  it('should initialize security services', async () => {
+    expect(logger).toBeDefined();
+    expect(encryptionService).toBeDefined();
+    expect(threatDetection).toBeDefined();
+  });
+});

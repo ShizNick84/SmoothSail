@@ -74,7 +74,7 @@ describe('TrailingStopManager', () => {
 
       // Position has 2% profit, which equals breakeven threshold
       expect(result.breakevenActive).toBe(true);
-      expect(result.reason).toContain('Breakeven');
+      expect(result.reason).toContain('breakeven');
       expect(result.newStopLoss).toBeGreaterThan(basePosition.entryPrice);
     });
 

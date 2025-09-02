@@ -37,7 +37,7 @@ const navigationItems: NavItem[] = [
     id: 'dashboard',
     label: 'Dashboard',
     icon: <Home className="h-5 w-5" />,
-    emoji: TradingEmojis.home,
+    emoji: TradingEmojis.chart,
     href: '/',
     active: true,
   },
@@ -45,7 +45,7 @@ const navigationItems: NavItem[] = [
     id: 'portfolio',
     label: 'Portfolio',
     icon: <Wallet className="h-5 w-5" />,
-    emoji: TradingEmojis.wallet,
+    emoji: TradingEmojis.money,
     href: '/portfolio',
   },
   {
@@ -59,7 +59,7 @@ const navigationItems: NavItem[] = [
     id: 'analytics',
     label: 'Analytics',
     icon: <Activity className="h-5 w-5" />,
-    emoji: TradingEmojis.analytics,
+    emoji: TradingEmojis.graph,
     href: '/analytics',
   },
   {

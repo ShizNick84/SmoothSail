@@ -160,7 +160,7 @@ export class TunnelRouter extends EventEmitter {
       
       // Create and establish tunnel connections
       for (const config of tunnelConfigs) {
-        const connection = await this.tunnelManager.createTunnel(config);
+        const connection = await this.tunnelManager.establishTunnel(config);
         await this.tunnelManager.establishTunnel(connection.id);
         
         // Initialize health status for tunnel
