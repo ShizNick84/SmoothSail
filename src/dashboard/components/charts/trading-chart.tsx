@@ -120,33 +120,62 @@ export function TradingChart({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={cn('glass-card p-6 rounded-xl', className)}
+      className={cn('trading-card chart-container relative', className)}
     >
-      {/* Chart Header */}
+      {/* Enhanced Chart Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
           <div>
-            <h3 className="text-xl font-bold flex items-center space-x-2">
-              <AnimatedEmoji emoji={TradingEmojis.chart} animation="pulse" />
-              <span>{symbol}</span>
-            </h3>
-            <div className="flex items-center space-x-2 mt-1">
-              <span className="text-2xl font-mono font-bold">
-                ${currentPrice.toFixed(2)}
+            <h3 className="text-2xl font-bold flex items-center space-x-3">
+              <AnimatedEmoji emoji={TradingEmojis.chart} animation="pulse" size="lg" />
+              <span className="bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+                {symbol}
               </span>
-              <div className={cn(
-                'flex items-center space-x-1 px-2 py-1 rounded-full text-sm font-medium',
-                isPositive ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
-              )}>
+              <div className="flex items-center space-x-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs">
+                <div className="h-1.5 w-1.5 bg-primary rounded-full animate-pulse" />
+                <span>LIVE</span>
+              </div>
+            </h3>
+            <div className="flex items-center space-x-3 mt-2">
+              <motion.span 
+                className="text-3xl font-mono font-bold"
+                key={currentPrice}
+                initial={{ scale: 1.1, color: isPositive ? '#22c55e' : '#ef4444' }}
+                animate={{ scale: 1, color: 'inherit' }}
+                transition={{ duration: 0.3 }}
+              >
+                ${currentPrice.toFixed(2)}
+              </motion.span>
+              <motion.div 
+                className={cn(
+                  'flex items-center space-x-2 px-3 py-2 rounded-full text-sm font-medium border',
+                  isPositive 
+                    ? 'bg-green-500/10 text-green-500 border-green-500/20 pulse-profit' 
+                    : 'bg-red-500/10 text-red-500 border-red-500/20 pulse-loss'
+                )}
+                whileHover={{ scale: 1.05 }}
+              >
+                <AnimatedEmoji 
+                  emoji={isPositive ? TradingEmojis.bullish : TradingEmojis.bearish} 
+                  size="sm" 
+                  animation={isPositive ? 'bounce' : 'shake'} 
+                />
                 {isPositive ? (
-                  <TrendingUp className="h-3 w-3" />
+                  <TrendingUp className="h-4 w-4" />
                 ) : (
-                  <TrendingDown className="h-3 w-3" />
+                  <TrendingDown className="h-4 w-4" />
                 )}
                 <span>
                   {isPositive ? '+' : ''}{priceChange.toFixed(2)} ({priceChangePercent.toFixed(2)}%)
                 </span>
-              </div>
+                {Math.abs(priceChangePercent) > 5 && (
+                  <AnimatedEmoji 
+                    emoji={TradingEmojis.fire} 
+                    size="sm" 
+                    animation="bounce" 
+                  />
+                )}
+              </motion.div>
             </div>
           </div>
         </div>

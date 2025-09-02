@@ -1,34 +1,13 @@
 #!/bin/bash
 
-# SSH Tunnel Startup Script for Intel NUC to Oracle Cloud
-# This script establishes and maintains SSH tunnel for Gate.io API access
+# =============================================================================
+# AI CRYPTO TRADING AGENT - SSH Tunnel Startup Script for Intel NUC
+# =============================================================================
+# This script establishes SSH tunnel from Intel NUC to Oracle Cloud
+# for secure Gate.io API access
+# =============================================================================
 
-set -e
-
-# Load environment variables if .env file exists
-if [[ -f "/opt/trading-agent/.env" ]]; then
-    source /opt/trading-agent/.env
-fi
-
-# Default configuration (can be overridden by environment variables)
-ORACLE_SSH_HOST=${ORACLE_SSH_HOST:-"168.138.104.117"}
-ORACLE_SSH_USERNAME=${ORACLE_SSH_USERNAME:-"opc"}
-ORACLE_SSH_PORT=${ORACLE_SSH_PORT:-"22"}
-SSH_PRIVATE_KEY_PATH=${SSH_PRIVATE_KEY_PATH:-"/opt/trading-agent/keys/oracle_key"}
-SSH_TUNNEL_LOCAL_PORT=${SSH_TUNNEL_LOCAL_PORT:-"8443"}
-SSH_TUNNEL_REMOTE_HOST=${SSH_TUNNEL_REMOTE_HOST:-"api.gateio.ws"}
-SSH_TUNNEL_REMOTE_PORT=${SSH_TUNNEL_REMOTE_PORT:-"443"}
-SSH_TUNNEL_BIND_ADDRESS=${SSH_TUNNEL_BIND_ADDRESS:-"127.0.0.1"}
-
-# SSH connection options
-SSH_CONNECT_TIMEOUT=${SSH_CONNECT_TIMEOUT:-"30"}
-SSH_SERVER_ALIVE_INTERVAL=${SSH_SERVER_ALIVE_INTERVAL:-"60"}
-SSH_SERVER_ALIVE_COUNT_MAX=${SSH_SERVER_ALIVE_COUNT_MAX:-"3"}
-SSH_STRICT_HOST_KEY_CHECKING=${SSH_STRICT_HOST_KEY_CHECKING:-"no"}
-
-# Logging
-LOG_FILE="/var/log/trading-agent/ssh-tunnel.log"
-PID_FILE="/var/run/ssh-tunnel.pid"
+set -e  # Exit on any error
 
 # Colors for output
 RED='\033[0;31m'
@@ -37,251 +16,159 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Function to log messages
-log_message() {
-    local level=$1
-    local message=$2
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
-    case $level in
-        "INFO")
-            echo -e "${BLUE}[INFO]${NC} $message"
-            ;;
-        "SUCCESS")
-            echo -e "${GREEN}[SUCCESS]${NC} $message"
-            ;;
-        "WARNING")
-            echo -e "${YELLOW}[WARNING]${NC} $message"
-            ;;
-        "ERROR")
-            echo -e "${RED}[ERROR]${NC} $message"
-            ;;
-    esac
-    
-    # Also log to file
-    echo "[$timestamp] [$level] $message" >> "$LOG_FILE"
+# Logging function
+log() {
+    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
 }
 
-# Function to check if tunnel is already running
-check_existing_tunnel() {
-    if [[ -f "$PID_FILE" ]]; then
-        local pid=$(cat "$PID_FILE")
-        if ps -p "$pid" > /dev/null 2>&1; then
-            log_message "WARNING" "SSH tunnel is already running with PID: $pid"
-            return 0
-        else
-            log_message "INFO" "Removing stale PID file"
-            rm -f "$PID_FILE"
-        fi
-    fi
-    return 1
+error() {
+    echo -e "${RED}[ERROR]${NC} $1" >&2
 }
 
-# Function to check if port is already in use
-check_port_availability() {
-    if netstat -tuln | grep -q ":$SSH_TUNNEL_LOCAL_PORT "; then
-        log_message "ERROR" "Port $SSH_TUNNEL_LOCAL_PORT is already in use"
-        return 1
-    fi
-    return 0
+success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-# Function to validate SSH key
-validate_ssh_key() {
-    if [[ ! -f "$SSH_PRIVATE_KEY_PATH" ]]; then
-        log_message "ERROR" "SSH private key not found: $SSH_PRIVATE_KEY_PATH"
-        return 1
-    fi
-    
-    # Check key permissions
-    local key_perms=$(stat -c "%a" "$SSH_PRIVATE_KEY_PATH")
-    if [[ "$key_perms" != "600" ]]; then
-        log_message "WARNING" "SSH key permissions are $key_perms, should be 600"
-        chmod 600 "$SSH_PRIVATE_KEY_PATH"
-        log_message "INFO" "Fixed SSH key permissions"
-    fi
-    
-    return 0
+warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# Function to test SSH connectivity
-test_ssh_connectivity() {
-    log_message "INFO" "Testing SSH connectivity to Oracle Cloud..."
-    
-    if ssh -i "$SSH_PRIVATE_KEY_PATH" \
-           -o ConnectTimeout="$SSH_CONNECT_TIMEOUT" \
-           -o StrictHostKeyChecking="$SSH_STRICT_HOST_KEY_CHECKING" \
-           -o BatchMode=yes \
-           -p "$ORACLE_SSH_PORT" \
-           "$ORACLE_SSH_USERNAME@$ORACLE_SSH_HOST" \
-           "echo 'SSH connection successful'" 2>/dev/null; then
-        log_message "SUCCESS" "SSH connectivity test passed"
-        return 0
+# Configuration from environment or defaults
+ORACLE_SSH_HOST="${ORACLE_SSH_HOST:-168.138.104.117}"
+ORACLE_SSH_USERNAME="${ORACLE_SSH_USERNAME:-opc}"
+ORACLE_SSH_PORT="${ORACLE_SSH_PORT:-22}"
+SSH_PRIVATE_KEY_PATH="${SSH_PRIVATE_KEY_PATH:-/opt/trading-agent/keys/oracle_key}"
+SSH_TUNNEL_LOCAL_PORT="${SSH_TUNNEL_LOCAL_PORT:-8443}"
+SSH_TUNNEL_REMOTE_HOST="${SSH_TUNNEL_REMOTE_HOST:-api.gateio.ws}"
+SSH_TUNNEL_REMOTE_PORT="${SSH_TUNNEL_REMOTE_PORT:-443}"
+SSH_TUNNEL_BIND_ADDRESS="${SSH_TUNNEL_BIND_ADDRESS:-127.0.0.1}"
+
+# SSH connection options
+SSH_CONNECT_TIMEOUT="${SSH_CONNECT_TIMEOUT:-30}"
+SSH_SERVER_ALIVE_INTERVAL="${SSH_SERVER_ALIVE_INTERVAL:-60}"
+SSH_SERVER_ALIVE_COUNT_MAX="${SSH_SERVER_ALIVE_COUNT_MAX:-3}"
+
+# PID file for tunnel process
+PID_FILE="/var/run/trading-agent/ssh-tunnel.pid"
+PID_DIR=$(dirname "$PID_FILE")
+
+log "🔗 Starting SSH Tunnel from Intel NUC to Oracle Cloud..."
+
+# Create PID directory if it doesn't exist
+if [[ ! -d "$PID_DIR" ]]; then
+    sudo mkdir -p "$PID_DIR"
+    sudo chown trading:trading "$PID_DIR"
+fi
+
+# Check if tunnel is already running
+if [[ -f "$PID_FILE" ]]; then
+    EXISTING_PID=$(cat "$PID_FILE")
+    if kill -0 "$EXISTING_PID" 2>/dev/null; then
+        warning "SSH tunnel is already running (PID: $EXISTING_PID)"
+        exit 0
     else
-        log_message "ERROR" "SSH connectivity test failed"
-        return 1
-    fi
-}
-
-# Function to establish SSH tunnel
-establish_tunnel() {
-    log_message "INFO" "Establishing SSH tunnel..."
-    log_message "INFO" "Local: $SSH_TUNNEL_BIND_ADDRESS:$SSH_TUNNEL_LOCAL_PORT"
-    log_message "INFO" "Remote: $SSH_TUNNEL_REMOTE_HOST:$SSH_TUNNEL_REMOTE_PORT"
-    log_message "INFO" "Via: $ORACLE_SSH_USERNAME@$ORACLE_SSH_HOST:$ORACLE_SSH_PORT"
-    
-    # Build SSH command
-    ssh_cmd=(
-        ssh
-        -i "$SSH_PRIVATE_KEY_PATH"
-        -L "$SSH_TUNNEL_BIND_ADDRESS:$SSH_TUNNEL_LOCAL_PORT:$SSH_TUNNEL_REMOTE_HOST:$SSH_TUNNEL_REMOTE_PORT"
-        -N
-        -T
-        -o ConnectTimeout="$SSH_CONNECT_TIMEOUT"
-        -o ServerAliveInterval="$SSH_SERVER_ALIVE_INTERVAL"
-        -o ServerAliveCountMax="$SSH_SERVER_ALIVE_COUNT_MAX"
-        -o StrictHostKeyChecking="$SSH_STRICT_HOST_KEY_CHECKING"
-        -o ExitOnForwardFailure=yes
-        -o BatchMode=yes
-        -p "$ORACLE_SSH_PORT"
-        "$ORACLE_SSH_USERNAME@$ORACLE_SSH_HOST"
-    )
-    
-    # Start SSH tunnel in background
-    "${ssh_cmd[@]}" &
-    local ssh_pid=$!
-    
-    # Save PID
-    echo "$ssh_pid" > "$PID_FILE"
-    
-    # Wait a moment for tunnel to establish
-    sleep 5
-    
-    # Check if tunnel is still running
-    if ps -p "$ssh_pid" > /dev/null 2>&1; then
-        log_message "SUCCESS" "SSH tunnel established successfully (PID: $ssh_pid)"
-        return 0
-    else
-        log_message "ERROR" "SSH tunnel failed to establish"
-        rm -f "$PID_FILE"
-        return 1
-    fi
-}
-
-# Function to test tunnel connectivity
-test_tunnel_connectivity() {
-    log_message "INFO" "Testing tunnel connectivity..."
-    
-    # Test HTTP connection through tunnel
-    if curl -s --connect-timeout 10 "http://localhost:$SSH_TUNNEL_LOCAL_PORT" > /dev/null 2>&1; then
-        log_message "SUCCESS" "Tunnel connectivity test passed"
-        return 0
-    else
-        log_message "WARNING" "Tunnel connectivity test failed (this may be normal if the remote service doesn't respond to basic HTTP)"
-        # Don't return error as Gate.io API might not respond to basic HTTP requests
-        return 0
-    fi
-}
-
-# Function to monitor tunnel health
-monitor_tunnel() {
-    log_message "INFO" "Starting tunnel health monitoring..."
-    
-    while true; do
-        if [[ -f "$PID_FILE" ]]; then
-            local pid=$(cat "$PID_FILE")
-            if ps -p "$pid" > /dev/null 2>&1; then
-                # Tunnel is running, test connectivity every 5 minutes
-                sleep 300
-                
-                # Test if we can still connect through tunnel
-                if ! curl -s --connect-timeout 5 "http://localhost:$SSH_TUNNEL_LOCAL_PORT" > /dev/null 2>&1; then
-                    log_message "WARNING" "Tunnel connectivity check failed, but continuing monitoring"
-                fi
-            else
-                log_message "ERROR" "SSH tunnel process died, attempting restart..."
-                rm -f "$PID_FILE"
-                
-                # Wait a bit before restart
-                sleep 10
-                
-                # Restart tunnel
-                if establish_tunnel; then
-                    log_message "SUCCESS" "SSH tunnel restarted successfully"
-                else
-                    log_message "ERROR" "Failed to restart SSH tunnel, retrying in 30 seconds..."
-                    sleep 30
-                fi
-            fi
-        else
-            log_message "ERROR" "PID file missing, tunnel may have died"
-            sleep 30
-        fi
-    done
-}
-
-# Function to cleanup on exit
-cleanup() {
-    log_message "INFO" "Cleaning up SSH tunnel..."
-    
-    if [[ -f "$PID_FILE" ]]; then
-        local pid=$(cat "$PID_FILE")
-        if ps -p "$pid" > /dev/null 2>&1; then
-            kill "$pid"
-            log_message "INFO" "SSH tunnel process terminated"
-        fi
+        log "Removing stale PID file"
         rm -f "$PID_FILE"
     fi
-    
-    log_message "INFO" "Cleanup completed"
+fi
+
+# Validate private key exists
+if [[ ! -f "$SSH_PRIVATE_KEY_PATH" ]]; then
+    error "SSH private key not found: $SSH_PRIVATE_KEY_PATH"
+    exit 1
+fi
+
+# Check private key permissions
+KEY_PERMS=$(stat -c "%a" "$SSH_PRIVATE_KEY_PATH")
+if [[ "$KEY_PERMS" != "600" ]]; then
+    warning "Fixing private key permissions (was $KEY_PERMS, setting to 600)"
+    chmod 600 "$SSH_PRIVATE_KEY_PATH"
+fi
+
+# Test SSH connectivity first
+log "Testing SSH connectivity to Oracle Cloud..."
+if ! ssh -i "$SSH_PRIVATE_KEY_PATH" \
+    -o ConnectTimeout="$SSH_CONNECT_TIMEOUT" \
+    -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
+    -o BatchMode=yes \
+    -p "$ORACLE_SSH_PORT" \
+    "$ORACLE_SSH_USERNAME@$ORACLE_SSH_HOST" \
+    "echo 'SSH connection test successful'" 2>/dev/null; then
+    error "SSH connectivity test failed. Check network connection and credentials."
+    exit 1
+fi
+
+success "SSH connectivity test passed"
+
+# Build SSH tunnel command
+SSH_CMD=(
+    ssh
+    -N  # No remote command execution
+    -T  # Disable pseudo-terminal allocation
+    -f  # Run in background
+    -o StrictHostKeyChecking=no
+    -o UserKnownHostsFile=/dev/null
+    -o ConnectTimeout="$SSH_CONNECT_TIMEOUT"
+    -o ServerAliveInterval="$SSH_SERVER_ALIVE_INTERVAL"
+    -o ServerAliveCountMax="$SSH_SERVER_ALIVE_COUNT_MAX"
+    -o TCPKeepAlive=yes
+    -o Compression=yes
+    -o ExitOnForwardFailure=yes
+    -p "$ORACLE_SSH_PORT"
+    -i "$SSH_PRIVATE_KEY_PATH"
+    -L "${SSH_TUNNEL_BIND_ADDRESS}:${SSH_TUNNEL_LOCAL_PORT}:${SSH_TUNNEL_REMOTE_HOST}:${SSH_TUNNEL_REMOTE_PORT}"
+    "$ORACLE_SSH_USERNAME@$ORACLE_SSH_HOST"
+)
+
+log "Establishing SSH tunnel..."
+log "Local endpoint: ${SSH_TUNNEL_BIND_ADDRESS}:${SSH_TUNNEL_LOCAL_PORT}"
+log "Remote endpoint: ${SSH_TUNNEL_REMOTE_HOST}:${SSH_TUNNEL_REMOTE_PORT}"
+log "SSH server: ${ORACLE_SSH_USERNAME}@${ORACLE_SSH_HOST}:${ORACLE_SSH_PORT}"
+
+# Start SSH tunnel
+"${SSH_CMD[@]}" &
+TUNNEL_PID=$!
+
+# Save PID
+echo "$TUNNEL_PID" > "$PID_FILE"
+
+# Wait a moment for tunnel to establish
+sleep 3
+
+# Verify tunnel is running
+if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+    error "SSH tunnel failed to start"
+    rm -f "$PID_FILE"
+    exit 1
+fi
+
+# Test tunnel connectivity
+log "Testing tunnel connectivity..."
+if timeout 10 bash -c "echo > /dev/tcp/${SSH_TUNNEL_BIND_ADDRESS}/${SSH_TUNNEL_LOCAL_PORT}" 2>/dev/null; then
+    success "SSH tunnel established successfully!"
+    success "Tunnel PID: $TUNNEL_PID"
+    success "Local endpoint: ${SSH_TUNNEL_BIND_ADDRESS}:${SSH_TUNNEL_LOCAL_PORT}"
+    success "Remote endpoint: ${SSH_TUNNEL_REMOTE_HOST}:${SSH_TUNNEL_REMOTE_PORT}"
+else
+    error "Tunnel connectivity test failed"
+    kill "$TUNNEL_PID" 2>/dev/null || true
+    rm -f "$PID_FILE"
+    exit 1
+fi
+
+# Create tunnel status file
+STATUS_FILE="/var/run/trading-agent/tunnel-status.json"
+cat > "$STATUS_FILE" << EOF
+{
+    "status": "connected",
+    "pid": $TUNNEL_PID,
+    "local_endpoint": "${SSH_TUNNEL_BIND_ADDRESS}:${SSH_TUNNEL_LOCAL_PORT}",
+    "remote_endpoint": "${SSH_TUNNEL_REMOTE_HOST}:${SSH_TUNNEL_REMOTE_PORT}",
+    "ssh_server": "${ORACLE_SSH_USERNAME}@${ORACLE_SSH_HOST}:${ORACLE_SSH_PORT}",
+    "started_at": "$(date -Iseconds)",
+    "last_check": "$(date -Iseconds)"
 }
+EOF
 
-# Set up signal handlers
-trap cleanup EXIT INT TERM
-
-# Main execution
-main() {
-    log_message "INFO" "Starting SSH tunnel to Oracle Cloud..."
-    
-    # Create log directory if it doesn't exist
-    mkdir -p "$(dirname "$LOG_FILE")"
-    
-    # Check if tunnel is already running
-    if check_existing_tunnel; then
-        log_message "INFO" "Using existing tunnel, starting monitoring..."
-        monitor_tunnel
-        return 0
-    fi
-    
-    # Validate prerequisites
-    if ! validate_ssh_key; then
-        log_message "ERROR" "SSH key validation failed"
-        exit 1
-    fi
-    
-    if ! check_port_availability; then
-        log_message "ERROR" "Port availability check failed"
-        exit 1
-    fi
-    
-    # Test SSH connectivity
-    if ! test_ssh_connectivity; then
-        log_message "ERROR" "SSH connectivity test failed"
-        exit 1
-    fi
-    
-    # Establish tunnel
-    if ! establish_tunnel; then
-        log_message "ERROR" "Failed to establish SSH tunnel"
-        exit 1
-    fi
-    
-    # Test tunnel connectivity
-    test_tunnel_connectivity
-    
-    # Start monitoring
-    monitor_tunnel
-}
-
-# Run main function
-main "$@"
+success "SSH tunnel startup completed! 🎉"

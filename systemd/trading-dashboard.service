@@ -1,0 +1,67 @@
+[Unit]
+Description=Trading Agent Web Dashboard
+Documentation=https://github.com/your-repo/trading-agent
+After=network-online.target trading-agent.service
+Wants=network-online.target
+Requires=trading-agent.service
+BindsTo=trading-agent.service
+
+[Service]
+Type=simple
+User=trading
+Group=trading
+WorkingDirectory=/opt/trading-agent
+
+# Dashboard startup command
+ExecStart=/usr/bin/npm run dashboard:start
+
+# Pre-start checks
+ExecStartPre=/bin/sleep 5
+ExecStartPre=/opt/trading-agent/scripts/dashboard-pre-start.sh
+
+# Health monitoring
+ExecStartPost=/bin/sleep 10
+ExecStartPost=/opt/trading-agent/scripts/dashboard-health-check.sh
+
+# Graceful shutdown
+ExecStop=/bin/kill -TERM $MAINPID
+TimeoutStopSec=30
+
+# Restart configuration
+Restart=always
+RestartSec=15
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/trading-agent/logs /opt/trading-agent/data
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=50%
+
+# Environment variables
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOST=0.0.0.0
+Environment=DASHBOARD_MODE=production
+EnvironmentFile=/opt/trading-agent/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trading-dashboard
+
+# Network access
+IPAddressDeny=any
+IPAddressAllow=localhost
+IPAddressAllow=192.168.0.0/16
+IPAddressAllow=10.0.0.0/8
+IPAddressAllow=172.16.0.0/12
+
+[Install]
+WantedBy=multi-user.target

@@ -1,350 +1,342 @@
 #!/bin/bash
 
-# Intel NUC Deployment Test Script
-# This script tests the deployment on a clean Ubuntu system
+# AI Crypto Trading Agent - Deployment Testing Script
+# Tests complete Intel NUC deployment and startup functionality
 
-set -e
+set -e  # Exit on any error
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Configuration
+# Test configuration
 TRADING_USER="trading"
 TRADING_HOME="/opt/trading-agent"
 LOG_DIR="/var/log/trading-agent"
-
-# Function to print colored output
-print_status() {
-    echo -e "${BLUE}[TEST]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[PASS]${NC} $1"
-}
-
-print_warning() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[FAIL]${NC} $1"
-}
+SERVICE_DIR="/etc/systemd/system"
+KEYS_DIR="$TRADING_HOME/keys"
+TEST_LOG="/tmp/deployment-test-$(date +%Y%m%d_%H%M%S).log"
 
 # Test counters
+TESTS_TOTAL=0
 TESTS_PASSED=0
 TESTS_FAILED=0
-TOTAL_TESTS=0
+
+# Function to print colored output
+print_test_header() {
+    echo -e "\n${PURPLE}=== $1 ===${NC}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Starting: $1" >> "$TEST_LOG"
+}
+
+print_test_info() {
+    echo -e "${BLUE}[TEST]${NC} $1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - INFO: $1" >> "$TEST_LOG"
+}
+
+print_test_success() {
+    echo -e "${GREEN}[PASS]${NC} $1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - PASS: $1" >> "$TEST_LOG"
+    ((TESTS_PASSED++))
+}
+
+print_test_failure() {
+    echo -e "${RED}[FAIL]${NC} $1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - FAIL: $1" >> "$TEST_LOG"
+    ((TESTS_FAILED++))
+}
+
+print_test_warning() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - WARN: $1" >> "$TEST_LOG"
+}
 
 # Function to run a test
 run_test() {
     local test_name="$1"
     local test_command="$2"
     
-    ((TOTAL_TESTS++))
-    print_status "Running test: $test_name"
+    ((TESTS_TOTAL++))
+    print_test_info "Running: $test_name"
     
-    if eval "$test_command"; then
-        print_success "$test_name"
-        ((TESTS_PASSED++))
+    if eval "$test_command" &>> "$TEST_LOG"; then
+        print_test_success "$test_name"
         return 0
     else
-        print_error "$test_name"
-        ((TESTS_FAILED++))
+        print_test_failure "$test_name"
         return 1
     fi
 }
 
-# Test functions
-test_system_packages() {
-    # Test Node.js installation
-    node --version > /dev/null 2>&1 && npm --version > /dev/null 2>&1
-}
-
-test_postgresql_installation() {
-    # Test PostgreSQL installation and service
-    systemctl is-active --quiet postgresql && sudo -u postgres psql -c "SELECT version();" > /dev/null 2>&1
-}
-
-test_trading_user_creation() {
-    # Test if trading user exists and has correct home directory
-    id "$TRADING_USER" > /dev/null 2>&1 && [[ -d "$TRADING_HOME" ]]
-}
-
-test_directory_structure() {
-    # Test if all required directories exist
-    [[ -d "$TRADING_HOME/config" ]] && \
-    [[ -d "$TRADING_HOME/logs" ]] && \
-    [[ -d "$TRADING_HOME/scripts" ]] && \
-    [[ -d "$TRADING_HOME/keys" ]] && \
-    [[ -d "$TRADING_HOME/backups" ]] && \
-    [[ -d "$LOG_DIR" ]]
-}
-
-test_directory_permissions() {
-    # Test directory ownership and permissions
-    [[ $(stat -c "%U" "$TRADING_HOME") == "$TRADING_USER" ]] && \
-    [[ $(stat -c "%G" "$TRADING_HOME") == "$TRADING_USER" ]] && \
-    [[ $(stat -c "%a" "$TRADING_HOME/keys") == "700" ]]
-}
-
-test_ssh_key_generation() {
-    # Test if SSH keys were generated
-    [[ -f "$TRADING_HOME/keys/oracle_key" ]] && \
-    [[ -f "$TRADING_HOME/keys/oracle_key.pub" ]] && \
-    [[ $(stat -c "%a" "$TRADING_HOME/keys/oracle_key") == "600" ]]
-}
-
-test_database_configuration() {
-    # Test database and user creation
-    sudo -u postgres psql -c "SELECT 1 FROM pg_database WHERE datname='trading_agent';" | grep -q "1" && \
-    sudo -u postgres psql -c "SELECT 1 FROM pg_user WHERE usename='$TRADING_USER';" | grep -q "1"
-}
-
-test_firewall_configuration() {
-    # Test UFW firewall status and rules
-    ufw status | grep -q "Status: active" && \
-    ufw status | grep -q "3000" && \
-    ufw status | grep -q "22/tcp"
-}
-
-test_fail2ban_installation() {
-    # Test fail2ban installation and status
-    systemctl is-active --quiet fail2ban && \
-    [[ -f "/etc/fail2ban/jail.local" ]]
-}
-
-test_systemd_services() {
-    # Test if systemd service files were created
-    [[ -f "/etc/systemd/system/ssh-tunnel.service" ]] && \
-    [[ -f "/etc/systemd/system/trading-agent.service" ]] && \
-    [[ -f "/etc/systemd/system/trading-dashboard.service" ]]
-}
-
-test_logrotate_configuration() {
-    # Test logrotate configuration
-    [[ -f "/etc/logrotate.d/trading-agent" ]]
-}
-
-test_scripts_creation() {
-    # Test if management scripts were created
-    [[ -f "$TRADING_HOME/scripts/health-check.sh" ]] && \
-    [[ -x "$TRADING_HOME/scripts/health-check.sh" ]] && \
-    [[ -f "$TRADING_HOME/scripts/backup.sh" ]] && \
-    [[ -x "$TRADING_HOME/scripts/backup.sh" ]]
-}
-
-test_cron_jobs() {
-    # Test if cron jobs were created
-    sudo -u "$TRADING_USER" crontab -l | grep -q "health-check.sh" && \
-    sudo -u "$TRADING_USER" crontab -l | grep -q "backup.sh"
-}
-
-test_global_npm_packages() {
-    # Test global npm packages
-    npm list -g pm2 > /dev/null 2>&1 && \
-    npm list -g typescript > /dev/null 2>&1 && \
-    npm list -g ts-node > /dev/null 2>&1
-}
-
-test_nginx_installation() {
-    # Test nginx installation
-    systemctl is-enabled --quiet nginx && \
-    nginx -t > /dev/null 2>&1
-}
-
-test_tunnel_scripts() {
-    # Test tunnel management scripts
-    [[ -f "scripts/start-tunnel.sh" ]] && \
-    [[ -f "scripts/stop-tunnel.sh" ]] && \
-    [[ -f "scripts/tunnel-status.sh" ]]
-}
-
-test_environment_template() {
-    # Test environment template creation
-    [[ -f ".env.nuc.template" ]]
-}
-
-# Function to test SSH connectivity (requires Oracle Cloud to be accessible)
-test_ssh_connectivity() {
-    print_status "Testing SSH connectivity to Oracle Cloud (optional)..."
+# Test 1: System Dependencies
+test_system_dependencies() {
+    print_test_header "Testing System Dependencies"
     
-    if [[ -f "$TRADING_HOME/.env" ]]; then
-        source "$TRADING_HOME/.env"
+    # Test Node.js installation
+    run_test "Node.js version check" "node --version | grep -E 'v1[8-9]|v[2-9][0-9]'"
+    run_test "npm version check" "npm --version"
+    
+    # Test PostgreSQL installation
+    run_test "PostgreSQL service status" "systemctl is-active postgresql"
+    run_test "PostgreSQL version check" "sudo -u postgres psql --version"
+    
+    # Test system packages
+    run_test "curl installation" "which curl"
+    run_test "git installation" "which git"
+    run_test "ssh client installation" "which ssh"
+    run_test "ufw firewall installation" "which ufw"
+    run_test "fail2ban installation" "which fail2ban-client"
+    
+    # Test global npm packages
+    run_test "TypeScript global installation" "which tsc"
+    run_test "ts-node global installation" "which ts-node"
+}
+
+# Test 2: User and Directory Structure
+test_user_and_directories() {
+    print_test_header "Testing User and Directory Structure"
+    
+    # Test trading user
+    run_test "Trading user exists" "id $TRADING_USER"
+    run_test "Trading user home directory" "test -d $TRADING_HOME"
+    
+    # Test directory structure
+    run_test "Config directory exists" "test -d $TRADING_HOME/config"
+    run_test "Logs directory exists" "test -d $TRADING_HOME/logs"
+    run_test "Scripts directory exists" "test -d $TRADING_HOME/scripts"
+    run_test "Keys directory exists" "test -d $KEYS_DIR"
+    run_test "Backups directory exists" "test -d $TRADING_HOME/backups"
+    run_test "System log directory exists" "test -d $LOG_DIR"
+    
+    # Test permissions
+    run_test "Trading home ownership" "test $(stat -c '%U' $TRADING_HOME) = '$TRADING_USER'"
+    run_test "Keys directory permissions" "test $(stat -c '%a' $KEYS_DIR) = '700'"
+    run_test "Log directory ownership" "test $(stat -c '%U' $LOG_DIR) = '$TRADING_USER'"
+}
+
+# Test 3: SSH Keys Configuration
+test_ssh_keys() {
+    print_test_header "Testing SSH Keys Configuration"
+    
+    # Test SSH key files
+    run_test "Private SSH key exists" "test -f $KEYS_DIR/oracle_key"
+    run_test "Public SSH key exists" "test -f $KEYS_DIR/oracle_key.pub"
+    run_test "Private key permissions" "test $(stat -c '%a' $KEYS_DIR/oracle_key) = '600'"
+    run_test "Public key permissions" "test $(stat -c '%a' $KEYS_DIR/oracle_key.pub) = '644'"
+    run_test "SSH key ownership" "test $(stat -c '%U' $KEYS_DIR/oracle_key) = '$TRADING_USER'"
+    
+    # Test SSH key format
+    run_test "Private key format" "head -1 $KEYS_DIR/oracle_key | grep -q 'BEGIN OPENSSH PRIVATE KEY'"
+    run_test "Public key format" "head -1 $KEYS_DIR/oracle_key.pub | grep -q '^ssh-rsa'"
+}
+
+# Test 4: Database Configuration
+test_database_configuration() {
+    print_test_header "Testing Database Configuration"
+    
+    # Test PostgreSQL service
+    run_test "PostgreSQL is running" "systemctl is-active postgresql"
+    run_test "PostgreSQL is enabled" "systemctl is-enabled postgresql"
+    
+    # Test database and user
+    run_test "Trading database exists" "sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw trading_agent"
+    run_test "Trading user exists in PostgreSQL" "sudo -u postgres psql -t -c \"SELECT 1 FROM pg_roles WHERE rolname='$TRADING_USER'\" | grep -q 1"
+    
+    # Test database connection
+    run_test "Database connection test" "PGPASSWORD='trading_secure_password_2024' psql -h localhost -U $TRADING_USER -d trading_agent -c 'SELECT 1;'"
+}
+
+# Test 5: Systemd Services
+test_systemd_services() {
+    print_test_header "Testing Systemd Services"
+    
+    # Test service files exist
+    run_test "SSH tunnel service file exists" "test -f $SERVICE_DIR/ssh-tunnel.service"
+    run_test "Trading agent service file exists" "test -f $SERVICE_DIR/trading-agent.service"
+    run_test "Dashboard service file exists" "test -f $SERVICE_DIR/trading-dashboard.service"
+    
+    # Test service file syntax
+    run_test "SSH tunnel service syntax" "systemd-analyze verify $SERVICE_DIR/ssh-tunnel.service"
+    run_test "Trading agent service syntax" "systemd-analyze verify $SERVICE_DIR/trading-agent.service"
+    run_test "Dashboard service syntax" "systemd-analyze verify $SERVICE_DIR/trading-dashboard.service"
+    
+    # Test systemd daemon reload
+    run_test "Systemd daemon reload" "systemctl daemon-reload"
+    
+    # Test service recognition
+    run_test "SSH tunnel service recognized" "systemctl status ssh-tunnel --no-pager -l"
+    run_test "Trading agent service recognized" "systemctl status trading-agent --no-pager -l"
+    run_test "Dashboard service recognized" "systemctl status trading-dashboard --no-pager -l"
+}
+
+# Test 6: Security Configuration
+test_security_configuration() {
+    print_test_header "Testing Security Configuration"
+    
+    # Test UFW firewall
+    run_test "UFW is active" "ufw status | grep -q 'Status: active'"
+    run_test "SSH access allowed" "ufw status | grep -q '22/tcp'"
+    run_test "Dashboard access configured" "ufw status | grep -q '3000'"
+    
+    # Test fail2ban
+    run_test "fail2ban is running" "systemctl is-active fail2ban"
+    run_test "fail2ban SSH jail active" "fail2ban-client status sshd"
+    
+    # Test log rotation
+    run_test "Trading agent logrotate config exists" "test -f /etc/logrotate.d/trading-agent"
+}
+
+# Test 7: Scripts and Monitoring
+test_scripts_and_monitoring() {
+    print_test_header "Testing Scripts and Monitoring"
+    
+    # Test script files
+    run_test "Health check script exists" "test -f $TRADING_HOME/scripts/health-check.sh"
+    run_test "Backup script exists" "test -f $TRADING_HOME/scripts/backup.sh"
+    run_test "Health check script executable" "test -x $TRADING_HOME/scripts/health-check.sh"
+    run_test "Backup script executable" "test -x $TRADING_HOME/scripts/backup.sh"
+    
+    # Test script ownership
+    run_test "Health check script ownership" "test $(stat -c '%U' $TRADING_HOME/scripts/health-check.sh) = '$TRADING_USER'"
+    run_test "Backup script ownership" "test $(stat -c '%U' $TRADING_HOME/scripts/backup.sh) = '$TRADING_USER'"
+    
+    # Test cron jobs
+    run_test "Health check cron job exists" "crontab -u $TRADING_USER -l | grep -q 'health-check.sh'"
+    run_test "Backup cron job exists" "crontab -u $TRADING_USER -l | grep -q 'backup.sh'"
+}
+
+# Test 8: SSH Tunnel Connectivity (if Oracle Cloud is accessible)
+test_ssh_tunnel_connectivity() {
+    print_test_header "Testing SSH Tunnel Connectivity"
+    
+    # Test SSH connection to Oracle Cloud (without tunnel)
+    if run_test "SSH connection to Oracle Cloud" "timeout 10 sudo -u $TRADING_USER ssh -i $KEYS_DIR/oracle_key -o ConnectTimeout=5 -o StrictHostKeyChecking=no opc@168.138.104.117 'echo \"SSH connection successful\"'"; then
+        print_test_info "Oracle Cloud SSH connection successful"
         
-        if [[ -n "$ORACLE_SSH_HOST" ]] && [[ -n "$ORACLE_SSH_USERNAME" ]]; then
-            if ssh -i "$TRADING_HOME/keys/oracle_key" \
-                   -o ConnectTimeout=10 \
-                   -o StrictHostKeyChecking=no \
-                   -o BatchMode=yes \
-                   "$ORACLE_SSH_USERNAME@$ORACLE_SSH_HOST" \
-                   "echo 'SSH test successful'" 2>/dev/null; then
-                print_success "SSH connectivity to Oracle Cloud"
-                return 0
+        # Test tunnel establishment (brief test)
+        print_test_info "Testing SSH tunnel establishment..."
+        if timeout 15 sudo -u $TRADING_USER ssh -N -L 8443:api.gateio.ws:443 -i $KEYS_DIR/oracle_key -o ConnectTimeout=5 -o StrictHostKeyChecking=no opc@168.138.104.117 &
+        then
+            TUNNEL_PID=$!
+            sleep 5
+            
+            # Test if tunnel port is listening
+            if run_test "SSH tunnel port listening" "netstat -ln | grep -q ':8443'"; then
+                print_test_success "SSH tunnel established successfully"
             else
-                print_warning "SSH connectivity test failed (this is expected if Oracle Cloud is not configured)"
-                return 1
+                print_test_failure "SSH tunnel port not listening"
             fi
+            
+            # Clean up tunnel
+            kill $TUNNEL_PID 2>/dev/null || true
+            sleep 2
         else
-            print_warning "Oracle Cloud SSH configuration not found in .env file"
-            return 1
+            print_test_failure "SSH tunnel establishment failed"
         fi
     else
-        print_warning ".env file not found, skipping SSH connectivity test"
-        return 1
+        print_test_warning "Oracle Cloud SSH connection failed - skipping tunnel tests"
+        print_test_warning "This may be expected if Oracle Cloud is not accessible from this network"
     fi
 }
 
-# Function to run all tests
-run_all_tests() {
-    print_status "Starting Intel NUC deployment tests..."
-    echo "========================================"
+# Test 9: Service Startup Simulation
+test_service_startup_simulation() {
+    print_test_header "Testing Service Startup Simulation"
     
-    # Core system tests
-    run_test "Node.js and npm installation" "test_system_packages"
-    run_test "PostgreSQL installation and service" "test_postgresql_installation"
-    run_test "Trading user creation" "test_trading_user_creation"
-    run_test "Directory structure creation" "test_directory_structure"
-    run_test "Directory permissions" "test_directory_permissions"
-    run_test "SSH key generation" "test_ssh_key_generation"
-    run_test "Database configuration" "test_database_configuration"
-    run_test "Firewall configuration" "test_firewall_configuration"
-    run_test "Fail2ban installation" "test_fail2ban_installation"
-    run_test "Systemd services creation" "test_systemd_services"
-    run_test "Logrotate configuration" "test_logrotate_configuration"
-    run_test "Management scripts creation" "test_scripts_creation"
-    run_test "Cron jobs creation" "test_cron_jobs"
-    run_test "Global npm packages" "test_global_npm_packages"
-    run_test "Nginx installation" "test_nginx_installation"
-    run_test "Tunnel scripts creation" "test_tunnel_scripts"
-    run_test "Environment template creation" "test_environment_template"
+    print_test_info "Note: This test simulates service startup without actually starting services"
+    print_test_info "Actual service testing should be done with application code deployed"
     
-    # Optional connectivity test
-    test_ssh_connectivity || true  # Don't fail if this test fails
+    # Test service enable (dry run)
+    run_test "SSH tunnel service can be enabled" "systemctl enable ssh-tunnel --dry-run"
+    run_test "Trading agent service can be enabled" "systemctl enable trading-agent --dry-run"
+    run_test "Dashboard service can be enabled" "systemctl enable trading-dashboard --dry-run"
     
-    echo "========================================"
-    print_status "Test Results Summary:"
-    print_success "Tests passed: $TESTS_PASSED"
-    print_error "Tests failed: $TESTS_FAILED"
-    print_status "Total tests: $TOTAL_TESTS"
+    # Test service dependencies
+    run_test "Trading agent depends on SSH tunnel" "grep -q 'Requires=ssh-tunnel.service' $SERVICE_DIR/trading-agent.service"
+    run_test "Dashboard depends on trading agent" "grep -q 'Requires=trading-agent.service' $SERVICE_DIR/trading-dashboard.service"
     
-    if [[ $TESTS_FAILED -eq 0 ]]; then
-        print_success "All deployment tests passed! 🎉"
-        echo ""
-        print_status "Next steps:"
-        echo "1. Copy your application code to $TRADING_HOME"
-        echo "2. Create and configure .env file from template"
-        echo "3. Install npm dependencies: cd $TRADING_HOME && npm install"
-        echo "4. Build the application: npm run build"
-        echo "5. Enable services: sudo systemctl enable ssh-tunnel trading-agent trading-dashboard"
-        echo "6. Start services: sudo systemctl start ssh-tunnel trading-agent trading-dashboard"
-        return 0
-    else
-        print_error "Some deployment tests failed. Please review the errors above."
-        return 1
-    fi
+    # Test service user configuration
+    run_test "SSH tunnel runs as trading user" "grep -q 'User=trading' $SERVICE_DIR/ssh-tunnel.service"
+    run_test "Trading agent runs as trading user" "grep -q 'User=trading' $SERVICE_DIR/trading-agent.service"
+    run_test "Dashboard runs as trading user" "grep -q 'User=trading' $SERVICE_DIR/trading-dashboard.service"
 }
 
-# Function to run specific test category
-run_category_tests() {
-    local category="$1"
+# Test 10: System Reboot Simulation
+test_system_reboot_simulation() {
+    print_test_header "Testing System Reboot Simulation"
     
-    case $category in
-        "system")
-            run_test "Node.js and npm installation" "test_system_packages"
-            run_test "PostgreSQL installation and service" "test_postgresql_installation"
-            run_test "Global npm packages" "test_global_npm_packages"
-            run_test "Nginx installation" "test_nginx_installation"
-            ;;
-        "user")
-            run_test "Trading user creation" "test_trading_user_creation"
-            run_test "Directory structure creation" "test_directory_structure"
-            run_test "Directory permissions" "test_directory_permissions"
-            ;;
-        "security")
-            run_test "SSH key generation" "test_ssh_key_generation"
-            run_test "Firewall configuration" "test_firewall_configuration"
-            run_test "Fail2ban installation" "test_fail2ban_installation"
-            ;;
-        "database")
-            run_test "Database configuration" "test_database_configuration"
-            ;;
-        "services")
-            run_test "Systemd services creation" "test_systemd_services"
-            run_test "Logrotate configuration" "test_logrotate_configuration"
-            ;;
-        "scripts")
-            run_test "Management scripts creation" "test_scripts_creation"
-            run_test "Cron jobs creation" "test_cron_jobs"
-            run_test "Tunnel scripts creation" "test_tunnel_scripts"
-            run_test "Environment template creation" "test_environment_template"
-            ;;
-        *)
-            print_error "Unknown test category: $category"
-            echo "Available categories: system, user, security, database, services, scripts"
-            return 1
-            ;;
-    esac
+    print_test_info "Testing auto-start configuration (simulation)"
+    
+    # Test if services are configured for auto-start
+    run_test "SSH tunnel auto-start target" "grep -q 'WantedBy=multi-user.target' $SERVICE_DIR/ssh-tunnel.service"
+    run_test "Trading agent auto-start target" "grep -q 'WantedBy=multi-user.target' $SERVICE_DIR/trading-agent.service"
+    run_test "Dashboard auto-start target" "grep -q 'WantedBy=multi-user.target' $SERVICE_DIR/trading-dashboard.service"
+    
+    # Test service restart configuration
+    run_test "SSH tunnel restart policy" "grep -q 'Restart=always' $SERVICE_DIR/ssh-tunnel.service"
+    run_test "Trading agent restart policy" "grep -q 'Restart=always' $SERVICE_DIR/trading-agent.service"
+    run_test "Dashboard restart policy" "grep -q 'Restart=always' $SERVICE_DIR/trading-dashboard.service"
+    
+    print_test_warning "Actual reboot testing requires manual system restart"
+    print_test_warning "After reboot, verify services start automatically with:"
+    print_test_warning "  sudo systemctl status ssh-tunnel trading-agent trading-dashboard"
 }
 
-# Function to show usage
-show_usage() {
-    echo "Usage: $0 [OPTION]"
-    echo ""
-    echo "Options:"
-    echo "  -a, --all                Run all deployment tests (default)"
-    echo "  -c, --category CATEGORY  Run specific category of tests"
-    echo "  -l, --list               List available test categories"
-    echo "  -h, --help               Show this help message"
-    echo ""
-    echo "Test Categories:"
-    echo "  system     - System packages and installations"
-    echo "  user       - User and directory setup"
-    echo "  security   - Security configuration (firewall, SSH, fail2ban)"
-    echo "  database   - Database setup and configuration"
-    echo "  services   - Systemd services and logging"
-    echo "  scripts    - Management scripts and automation"
-    echo ""
-}
-
-# Main execution
+# Main test execution
 main() {
-    local option="${1:-all}"
-    local category="$2"
+    echo -e "${CYAN}🚀 AI Crypto Trading Agent - Deployment Testing${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo "Test started at: $(date)"
+    echo "Test log: $TEST_LOG"
+    echo ""
     
-    case $option in
-        -a|--all|all)
-            run_all_tests
-            ;;
-        -c|--category)
-            if [[ -z "$category" ]]; then
-                print_error "Category not specified"
-                show_usage
-                exit 1
-            fi
-            run_category_tests "$category"
-            ;;
-        -l|--list)
-            echo "Available test categories:"
-            echo "  system, user, security, database, services, scripts"
-            ;;
-        -h|--help)
-            show_usage
-            ;;
-        *)
-            print_error "Unknown option: $option"
-            show_usage
-            exit 1
-            ;;
-    esac
+    # Initialize test log
+    echo "=== AI Crypto Trading Agent Deployment Test ===" > "$TEST_LOG"
+    echo "Test started at: $(date)" >> "$TEST_LOG"
+    echo "" >> "$TEST_LOG"
+    
+    # Run all tests
+    test_system_dependencies
+    test_user_and_directories
+    test_ssh_keys
+    test_database_configuration
+    test_systemd_services
+    test_security_configuration
+    test_scripts_and_monitoring
+    test_ssh_tunnel_connectivity
+    test_service_startup_simulation
+    test_system_reboot_simulation
+    
+    # Print test summary
+    echo ""
+    echo -e "${CYAN}=== Test Summary ===${NC}"
+    echo -e "Total Tests: ${BLUE}$TESTS_TOTAL${NC}"
+    echo -e "Passed: ${GREEN}$TESTS_PASSED${NC}"
+    echo -e "Failed: ${RED}$TESTS_FAILED${NC}"
+    echo -e "Success Rate: ${BLUE}$(( TESTS_PASSED * 100 / TESTS_TOTAL ))%${NC}"
+    echo ""
+    echo "Detailed test log: $TEST_LOG"
+    
+    # Final status
+    if [ $TESTS_FAILED -eq 0 ]; then
+        echo -e "${GREEN}✅ All deployment tests passed!${NC}"
+        echo -e "${GREEN}System is ready for application deployment.${NC}"
+        exit 0
+    else
+        echo -e "${RED}❌ Some tests failed. Please review the issues above.${NC}"
+        echo -e "${YELLOW}Check the detailed log for more information: $TEST_LOG${NC}"
+        exit 1
+    fi
 }
 
 # Check if running as root
-if [[ $EUID -eq 0 ]]; then
-    print_warning "Running as root. Some tests may not work correctly."
+if [[ $EUID -ne 0 ]]; then
+    echo -e "${RED}This script must be run as root (use sudo)${NC}"
+    exit 1
 fi
 
 # Run main function

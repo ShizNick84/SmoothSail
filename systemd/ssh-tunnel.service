@@ -1,0 +1,48 @@
+[Unit]
+Description=SSH Tunnel to Oracle Cloud for Gate.io API Access
+Documentation=https://github.com/your-repo/trading-agent
+After=network-online.target
+Wants=network-online.target
+Before=trading-agent.service
+
+[Service]
+Type=simple
+User=trading
+Group=trading
+WorkingDirectory=/opt/trading-agent
+
+# SSH tunnel command: localhost:8443 -> Oracle Cloud -> Gate.io API
+ExecStart=/usr/bin/ssh -N -L 8443:api.gateio.ws:443 -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes -o StrictHostKeyChecking=no -i /opt/trading-agent/keys/oracle_key opc@168.138.104.117
+
+# Health check script to monitor tunnel
+ExecStartPost=/bin/sleep 5
+ExecStartPost=/opt/trading-agent/scripts/tunnel-health-check.sh
+
+# Graceful shutdown
+ExecStop=/bin/kill -TERM $MAINPID
+TimeoutStopSec=30
+
+# Restart configuration for tunnel failure recovery
+Restart=always
+RestartSec=10
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/trading-agent/logs
+
+# Environment
+Environment=NODE_ENV=production
+Environment=SSH_AUTH_SOCK=
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ssh-tunnel
+
+[Install]
+WantedBy=multi-user.target

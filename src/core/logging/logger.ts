@@ -49,6 +49,24 @@ export interface LogMetadata {
   context?: Record<string, any>;
   /** Security classification */
   classification?: 'PUBLIC' | 'INTERNAL' | 'CONFIDENTIAL' | 'RESTRICTED';
+  /** Error information */
+  error?: {
+    name: string;
+    message: string;
+    stack?: string;
+  };
+  /** Process ID */
+  pid?: number;
+  /** Hostname */
+  hostname?: string;
+  /** Node.js version */
+  nodeVersion?: string;
+  /** Environment */
+  environment?: string;
+  /** Timestamp */
+  timestamp?: string;
+  /** Log level */
+  level?: string;
 }
 
 /**
@@ -316,7 +334,7 @@ class Logger {
     
     // Replace sensitive patterns with masked values
     for (const pattern of Logger.SENSITIVE_PATTERNS) {
-      sanitized = sanitized.replace(pattern, (match, group1) => {
+      sanitized = sanitized.replace(pattern, (match: string, group1?: string) => {
         if (group1) {
           const maskedValue = '*'.repeat(Math.min(group1.length, 8));
           return match.replace(group1, maskedValue);
@@ -511,7 +529,7 @@ export const logger = new Logger();
 export { Logger };
 
 // Export types for use in other modules
-export type { LogMetadata, AuditLogEntry };
+export type { AuditLogEntry };
 
 // =============================================================================
 // LOGGING SECURITY NOTES

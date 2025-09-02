@@ -1,0 +1,62 @@
+[Unit]
+Description=AI Crypto Trading Agent
+Documentation=https://github.com/your-repo/trading-agent
+After=network-online.target ssh-tunnel.service postgresql.service
+Wants=network-online.target postgresql.service
+Requires=ssh-tunnel.service
+BindsTo=ssh-tunnel.service
+
+[Service]
+Type=simple
+User=trading
+Group=trading
+WorkingDirectory=/opt/trading-agent
+
+# Main application command
+ExecStart=/usr/bin/node dist/main.js
+
+# Pre-start checks
+ExecStartPre=/bin/sleep 10
+ExecStartPre=/opt/trading-agent/scripts/pre-start-checks.sh
+
+# Health monitoring
+ExecStartPost=/bin/sleep 15
+ExecStartPost=/opt/trading-agent/scripts/trading-health-check.sh
+
+# Graceful shutdown
+ExecStop=/bin/kill -TERM $MAINPID
+ExecStopPost=/opt/trading-agent/scripts/post-stop-cleanup.sh
+TimeoutStopSec=60
+
+# Restart configuration
+Restart=always
+RestartSec=30
+StartLimitInterval=600
+StartLimitBurst=3
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/trading-agent/logs /opt/trading-agent/data /tmp
+
+# Resource limits
+MemoryMax=1G
+CPUQuota=80%
+
+# Environment variables
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS="--max-old-space-size=768"
+EnvironmentFile=/opt/trading-agent/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trading-agent
+
+# Working directory permissions
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

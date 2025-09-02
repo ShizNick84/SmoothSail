@@ -106,46 +106,81 @@ function MetricCard({
 }) {
   const trendColor = trend === 'up' ? 'text-green-500' : trend === 'down' ? 'text-red-500' : 'text-muted-foreground';
   const trendBg = trend === 'up' ? 'bg-green-500/10' : trend === 'down' ? 'bg-red-500/10' : 'bg-muted/10';
+  const pulseClass = trend === 'up' ? 'pulse-profit' : trend === 'down' ? 'pulse-loss' : '';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -2, scale: 1.02 }}
-      className={cn('glass-card p-6 rounded-xl', className)}
+      whileHover={{ y: -4, scale: 1.03 }}
+      className={cn('trading-card relative overflow-hidden', pulseClass, className)}
     >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-2">
-          {icon && <DynamicIcon name={icon} size="sm" />}
-          {emoji && <AnimatedEmoji emoji={emoji} size="sm" animation="pulse" />}
-          <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
-        </div>
-        {trend && (
-          <div className={cn('p-1 rounded-full', trendBg)}>
-            {trend === 'up' ? (
-              <TrendingUp className={cn('h-4 w-4', trendColor)} />
-            ) : trend === 'down' ? (
-              <TrendingDown className={cn('h-4 w-4', trendColor)} />
-            ) : (
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            )}
-          </div>
-        )}
-      </div>
+      {/* Background gradient based on trend */}
+      <div className={cn(
+        'absolute inset-0 opacity-5',
+        trend === 'up' ? 'gradient-bg-profit' : trend === 'down' ? 'gradient-bg-loss' : 'gradient-bg-trading'
+      )} />
       
-      <div className="space-y-2">
-        <div className={cn('text-2xl font-bold', trendColor)}>
-          <AnimatedCounter value={value} format={format} />
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            {icon && <DynamicIcon name={icon} size="sm" animate />}
+            {emoji && <AnimatedEmoji emoji={emoji} size="sm" animation="pulse" />}
+            <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+          </div>
+          {trend && (
+            <motion.div 
+              className={cn('p-2 rounded-full', trendBg)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {trend === 'up' ? (
+                <TrendingUp className={cn('h-4 w-4', trendColor)} />
+              ) : trend === 'down' ? (
+                <TrendingDown className={cn('h-4 w-4', trendColor)} />
+              ) : (
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              )}
+            </motion.div>
+          )}
         </div>
         
-        {change !== undefined && (
-          <div className="flex items-center space-x-1">
-            <span className={cn('text-sm font-medium', trendColor)}>
-              <AnimatedCounter value={change} format="percentage" />
-            </span>
-            <span className="text-xs text-muted-foreground">24h</span>
+        <div className="space-y-3">
+          <div className={cn('text-3xl font-bold font-mono', trendColor)}>
+            <AnimatedCounter value={value} format={format} />
           </div>
-        )}
+          
+          {change !== undefined && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className={cn('text-sm font-medium', trendColor)}>
+                  <AnimatedCounter value={change} format="percentage" />
+                </span>
+                <span className="text-xs text-muted-foreground">24h change</span>
+              </div>
+              {Math.abs(change) > 5 && (
+                <AnimatedEmoji 
+                  emoji={change > 5 ? TradingEmojis.fire : TradingEmojis.warning} 
+                  size="sm" 
+                  animation={change > 5 ? 'bounce' : 'shake'} 
+                />
+              )}
+            </div>
+          )}
+          
+          {/* Mini sparkline effect */}
+          <div className="h-1 bg-muted/20 rounded-full overflow-hidden">
+            <motion.div
+              className={cn(
+                'h-full rounded-full',
+                trend === 'up' ? 'bg-green-500' : trend === 'down' ? 'bg-red-500' : 'bg-blue-500'
+              )}
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(Math.abs(change || 0) * 10, 100)}%` }}
+              transition={{ duration: 1, delay: 0.5 }}
+            />
+          </div>
+        </div>
       </div>
     </motion.div>
   );

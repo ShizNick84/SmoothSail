@@ -39,9 +39,13 @@ class TradingApplication {
       type: 'postgresql',
       host: process.env.DATABASE_HOST || 'localhost',
       port: parseInt(process.env.DATABASE_PORT || '5432'),
-      database: process.env.DATABASE_NAME || 'scalping_alchemist',
-      username: process.env.DATABASE_USER || 'trading_user',
-      password: process.env.DATABASE_PASSWORD || 'secure_password_123'
+      database: process.env.DATABASE_NAME || 'trading_agent',
+      username: process.env.DATABASE_USER || 'trading',
+      password: process.env.DATABASE_PASSWORD || 'trading_secure_password_2024',
+      ssl: process.env.DATABASE_SSL === 'true',
+      maxConnections: parseInt(process.env.DATABASE_POOL_MAX || '10'),
+      idleTimeout: parseInt(process.env.DATABASE_POOL_IDLE_TIMEOUT || '30000'),
+      connectionTimeout: parseInt(process.env.DATABASE_POOL_CONNECTION_TIMEOUT || '60000')
     });
     
     this.aiEngine = new AIEngine({
@@ -75,14 +79,14 @@ class TradingApplication {
     });
     
     this.dashboardServer = new DashboardServer({
-      port: parseInt(process.env.PORT || '3000'),
-      host: process.env.HOST || '0.0.0.0',
+      port: parseInt(process.env.DASHBOARD_PORT || process.env.PORT || '3000'),
+      host: process.env.DASHBOARD_HOST || process.env.HOST || '0.0.0.0',
       cors: {
-        origin: (process.env.CORS_ORIGINS || 'http://localhost:3000').split(','),
-        credentials: true
+        origin: this.buildCorsOrigins(),
+        credentials: process.env.DASHBOARD_CORS_CREDENTIALS !== 'false'
       },
       auth: {
-        enabled: process.env.DASHBOARD_AUTH_ENABLED !== 'false',
+        enabled: process.env.DASHBOARD_AUTH_ENABLED === 'true',
         secret: process.env.JWT_SECRET || 'your-secret-key'
       },
       rateLimit: {
@@ -156,17 +160,17 @@ class TradingApplication {
       name: 'gate-io-tunnel',
       remoteHost: 'api.gateio.ws',
       remotePort: 443,
-      localPort: 8443,
+      localPort: parseInt(process.env.SSH_TUNNEL_LOCAL_PORT || '8443'),
       sshHost: process.env.ORACLE_SSH_HOST || '168.138.104.117',
-      sshPort: 22,
+      sshPort: parseInt(process.env.ORACLE_SSH_PORT || '22'),
       sshUsername: process.env.ORACLE_SSH_USERNAME || 'opc',
-      privateKeyPath: process.env.SSH_PRIVATE_KEY_PATH || '~/.ssh/id_rsa',
+      privateKeyPath: process.env.SSH_PRIVATE_KEY_PATH || '/opt/trading-agent/keys/oracle_key',
       privateKey: process.env.ORACLE_SSH_PRIVATE_KEY,
-      maxRetries: 3,
-      retryDelay: 5000,
-      healthCheckInterval: 30000,
-      compression: true,
-      keepAlive: true
+      maxRetries: parseInt(process.env.SSH_TUNNEL_MAX_RETRIES || '5'),
+      retryDelay: parseInt(process.env.SSH_TUNNEL_RETRY_DELAY || '10000'),
+      healthCheckInterval: parseInt(process.env.SSH_TUNNEL_HEALTH_CHECK_INTERVAL || '60000'),
+      compression: process.env.SSH_TUNNEL_COMPRESSION !== 'false',
+      keepAlive: process.env.SSH_TUNNEL_KEEP_ALIVE !== 'false'
     };
 
     logger.info('🔗 Establishing SSH tunnel...', {
@@ -259,6 +263,55 @@ class TradingApplication {
       }
     }
     logger.info('✅ Application shutdown complete');
+  }
+
+  /**
+   * Build CORS origins for local network access
+   */
+  private buildCorsOrigins(): string[] {
+    const origins = [];
+    
+    // Add configured origins
+    if (process.env.CORS_ORIGINS) {
+      origins.push(...process.env.CORS_ORIGINS.split(','));
+    }
+    
+    // Add default localhost origins
+    const port = process.env.DASHBOARD_PORT || process.env.PORT || '3000';
+    origins.push(`http://localhost:${port}`);
+    origins.push(`http://127.0.0.1:${port}`);
+    
+    // Add local network patterns for Intel NUC deployment
+    if (process.env.NODE_ENV === 'production') {
+      // Common private network ranges
+      const privateRanges = [
+        '192.168.*.*',
+        '10.*.*.*',
+        '172.16.*.*',
+        '172.17.*.*',
+        '172.18.*.*',
+        '172.19.*.*',
+        '172.20.*.*',
+        '172.21.*.*',
+        '172.22.*.*',
+        '172.23.*.*',
+        '172.24.*.*',
+        '172.25.*.*',
+        '172.26.*.*',
+        '172.27.*.*',
+        '172.28.*.*',
+        '172.29.*.*',
+        '172.30.*.*',
+        '172.31.*.*'
+      ];
+      
+      for (const range of privateRanges) {
+        origins.push(`http://${range}:${port}`);
+        origins.push(`https://${range}:${port}`);
+      }
+    }
+    
+    return origins;
   }
 
   /**

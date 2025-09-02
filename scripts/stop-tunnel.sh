@@ -1,13 +1,12 @@
 #!/bin/bash
 
-# SSH Tunnel Stop Script for Intel NUC
-# This script gracefully stops the SSH tunnel
+# =============================================================================
+# AI CRYPTO TRADING AGENT - SSH Tunnel Stop Script for Intel NUC
+# =============================================================================
+# This script gracefully stops the SSH tunnel to Oracle Cloud
+# =============================================================================
 
-set -e
-
-# Configuration
-PID_FILE="/var/run/ssh-tunnel.pid"
-LOG_FILE="/var/log/trading-agent/ssh-tunnel.log"
+set -e  # Exit on any error
 
 # Colors for output
 RED='\033[0;31m'
@@ -16,91 +15,108 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Function to log messages
-log_message() {
-    local level=$1
-    local message=$2
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
-    case $level in
-        "INFO")
-            echo -e "${BLUE}[INFO]${NC} $message"
-            ;;
-        "SUCCESS")
-            echo -e "${GREEN}[SUCCESS]${NC} $message"
-            ;;
-        "WARNING")
-            echo -e "${YELLOW}[WARNING]${NC} $message"
-            ;;
-        "ERROR")
-            echo -e "${RED}[ERROR]${NC} $message"
-            ;;
-    esac
-    
-    # Also log to file if log file exists
-    if [[ -f "$LOG_FILE" ]]; then
-        echo "[$timestamp] [$level] $message" >> "$LOG_FILE"
-    fi
+# Logging function
+log() {
+    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
 }
 
-# Function to stop SSH tunnel
-stop_tunnel() {
-    log_message "INFO" "Stopping SSH tunnel..."
+error() {
+    echo -e "${RED}[ERROR]${NC} $1" >&2
+}
+
+success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+# PID file for tunnel process
+PID_FILE="/var/run/trading-agent/ssh-tunnel.pid"
+STATUS_FILE="/var/run/trading-agent/tunnel-status.json"
+
+log "🛑 Stopping SSH Tunnel..."
+
+# Check if PID file exists
+if [[ ! -f "$PID_FILE" ]]; then
+    warning "SSH tunnel PID file not found. Tunnel may not be running."
     
-    if [[ ! -f "$PID_FILE" ]]; then
-        log_message "WARNING" "PID file not found, tunnel may not be running"
-        return 0
+    # Try to find SSH tunnel processes anyway
+    TUNNEL_PIDS=$(pgrep -f "ssh.*api.gateio.ws" || true)
+    if [[ -n "$TUNNEL_PIDS" ]]; then
+        warning "Found SSH tunnel processes: $TUNNEL_PIDS"
+        log "Attempting to stop found processes..."
+        for pid in $TUNNEL_PIDS; do
+            if kill -TERM "$pid" 2>/dev/null; then
+                log "Sent SIGTERM to process $pid"
+            fi
+        done
+        
+        # Wait for processes to exit
+        sleep 3
+        
+        # Force kill if still running
+        for pid in $TUNNEL_PIDS; do
+            if kill -0 "$pid" 2>/dev/null; then
+                warning "Force killing process $pid"
+                kill -KILL "$pid" 2>/dev/null || true
+            fi
+        done
     fi
     
-    local pid=$(cat "$PID_FILE")
-    
-    if ! ps -p "$pid" > /dev/null 2>&1; then
-        log_message "WARNING" "SSH tunnel process (PID: $pid) is not running"
-        rm -f "$PID_FILE"
-        return 0
-    fi
-    
-    # Send TERM signal first
-    log_message "INFO" "Sending TERM signal to SSH tunnel process (PID: $pid)"
-    kill -TERM "$pid"
+    # Clean up status file
+    rm -f "$STATUS_FILE"
+    success "SSH tunnel cleanup completed"
+    exit 0
+fi
+
+# Read PID from file
+TUNNEL_PID=$(cat "$PID_FILE")
+
+# Check if process is running
+if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+    warning "SSH tunnel process (PID: $TUNNEL_PID) is not running"
+    rm -f "$PID_FILE"
+    rm -f "$STATUS_FILE"
+    success "Cleaned up stale PID file"
+    exit 0
+fi
+
+log "Stopping SSH tunnel process (PID: $TUNNEL_PID)..."
+
+# Graceful termination
+if kill -TERM "$TUNNEL_PID" 2>/dev/null; then
+    log "Sent SIGTERM to SSH tunnel process"
     
     # Wait for graceful shutdown
-    local count=0
-    while ps -p "$pid" > /dev/null 2>&1 && [[ $count -lt 10 ]]; do
+    for i in {1..10}; do
+        if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+            success "SSH tunnel stopped gracefully"
+            break
+        fi
+        log "Waiting for tunnel to stop... ($i/10)"
         sleep 1
-        ((count++))
     done
     
-    # If still running, force kill
-    if ps -p "$pid" > /dev/null 2>&1; then
-        log_message "WARNING" "Process still running, sending KILL signal"
-        kill -KILL "$pid"
-        sleep 2
+    # Force kill if still running
+    if kill -0 "$TUNNEL_PID" 2>/dev/null; then
+        warning "Tunnel did not stop gracefully, force killing..."
+        kill -KILL "$TUNNEL_PID" 2>/dev/null || true
+        sleep 1
     fi
-    
-    # Verify process is stopped
-    if ps -p "$pid" > /dev/null 2>&1; then
-        log_message "ERROR" "Failed to stop SSH tunnel process"
-        return 1
-    else
-        log_message "SUCCESS" "SSH tunnel stopped successfully"
-        rm -f "$PID_FILE"
-        return 0
-    fi
-}
+else
+    error "Failed to send SIGTERM to tunnel process"
+fi
 
-# Main execution
-main() {
-    log_message "INFO" "SSH tunnel stop script started"
-    
-    if stop_tunnel; then
-        log_message "SUCCESS" "SSH tunnel stop completed"
-        exit 0
-    else
-        log_message "ERROR" "SSH tunnel stop failed"
-        exit 1
-    fi
-}
+# Verify process is stopped
+if kill -0 "$TUNNEL_PID" 2>/dev/null; then
+    error "Failed to stop SSH tunnel process"
+    exit 1
+fi
 
-# Run main function
-main "$@"
+# Clean up files
+rm -f "$PID_FILE"
+rm -f "$STATUS_FILE"
+
+success "SSH tunnel stopped successfully! 🎉"
