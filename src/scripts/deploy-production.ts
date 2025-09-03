@@ -388,7 +388,7 @@ class DeploymentCLI {
    * Run the CLI
    */
   run(): void {
-    this.program.parse();
+    this.program.parse(process.argv);
   }
 }
 

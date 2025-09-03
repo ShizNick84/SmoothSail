@@ -22,7 +22,7 @@
  * =============================================================================
  */
 
-import { createCipherGCM, createDecipherGCM, randomBytes, pbkdf2Sync, createHash } from 'crypto';
+import { createCipher, createDecipher, randomBytes, pbkdf2Sync, createHash } from 'crypto';
 import { logger } from '@/core/logging/logger';
 
 /**

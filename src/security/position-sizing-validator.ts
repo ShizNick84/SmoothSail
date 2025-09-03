@@ -903,5 +903,4 @@ export class PositionSizingValidator {
   }
 }
 
-// Export for use in trading engine
-export { PositionSizingValidator };
+// Export already done above with class declaration

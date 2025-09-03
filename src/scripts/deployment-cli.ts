@@ -10,7 +10,7 @@
  */
 
 import { Command } from 'commander';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 import { ProductionDeployer } from '../deployment/production-deployer';
 import { finalValidation } from '../deployment/final-validation';
 import { e2eTestRunner } from '../deployment/e2e-testing';
@@ -824,7 +824,7 @@ class DeploymentCLI {
    * Run the CLI
    */
   run(): void {
-    this.program.parse();
+    this.program.parse(process.argv);
   }
 }
 

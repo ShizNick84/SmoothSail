@@ -54,7 +54,7 @@ export interface LogMetadata {
     name: string;
     message: string;
     stack?: string;
-  };
+  } | string;
   /** Process ID */
   pid?: number;
   /** Hostname */
@@ -64,9 +64,12 @@ export interface LogMetadata {
   /** Environment */
   environment?: string;
   /** Timestamp */
-  timestamp?: string;
+  timestamp?: string | number;
   /** Log level */
   level?: string;
+  
+  // Allow any additional properties to fix type errors
+  [key: string]: any;
 }
 
 /**

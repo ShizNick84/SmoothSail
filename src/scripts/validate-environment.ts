@@ -7,7 +7,7 @@
  */
 
 import { existsSync, readFileSync } from 'fs';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 
 interface ValidationRule {
   key: string;

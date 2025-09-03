@@ -685,5 +685,4 @@ export class RiskManagementService {
   }
 }
 
-// Export for use in trading engine
-export { RiskManagementService };
+// Export already done above with class declaration
