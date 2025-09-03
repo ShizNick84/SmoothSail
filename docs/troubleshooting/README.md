@@ -2,7 +2,11 @@
 
 ## Overview
 
-This comprehensive troubleshooting guide covers common issues, diagnostic procedures, and solutions for the AI Crypto Trading Agent.
+This troubleshooting guide covers common application issues and diagnostic procedures. 
+
+**For comprehensive error handling and system administration**: See the [System Administrator Manual](../SYSTEM_ADMINISTRATOR_MANUAL.md)
+
+**For maintenance procedures**: See [Maintenance Procedures](../MAINTENANCE_PROCEDURES.md)
 
 ## Quick Diagnostic Commands
 

@@ -98,7 +98,7 @@ export interface AuditLogEntry {
  * Comprehensive logging service for the AI crypto trading agent
  * Provides secure, structured logging with automatic rotation and sanitization
  */
-class Logger {
+export class Logger {
   private winston: winston.Logger;
   private auditLogger: winston.Logger;
   private securityLogger: winston.Logger;
@@ -525,11 +525,7 @@ class Logger {
 // Create and export singleton logger instance
 export const logger = new Logger();
 
-// Export the Logger class for tests and custom instances
-export { Logger };
-
 // Export types for use in other modules
-export type { AuditLogEntry };
 
 // =============================================================================
 // LOGGING SECURITY NOTES

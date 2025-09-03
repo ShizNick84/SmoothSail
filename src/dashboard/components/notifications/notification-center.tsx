@@ -526,7 +526,7 @@ export function NotificationCenter({ className = '', maxNotifications = 100 }: N
                 animate={{ opacity: 1 }}
                 className="text-center py-8 text-muted-foreground"
               >
-                <AnimatedEmoji emoji={TradingEmojis.search} size="lg" />
+                <AnimatedEmoji emoji={TradingEmojis.question} size="lg" />
                 <p className="mt-2">No notifications match your current filters</p>
               </motion.div>
             )}

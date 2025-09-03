@@ -70,7 +70,7 @@ const dashboardViews = [
     key: 'logs' as const,
     label: 'Logs',
     icon: <ScrollText className="h-4 w-4" />,
-    emoji: TradingEmojis.scroll,
+    emoji: TradingEmojis.data,
     description: 'Real-time log viewer'
   },
   {

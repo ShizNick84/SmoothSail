@@ -86,7 +86,7 @@ export class DashboardServer {
         this.server.on('error', reject);
       });
     } catch (error) {
-      this.logger.error('Failed to start Dashboard Server:', error);
+      this.logger.error('Failed to start Dashboard Server:', error as Error);
       throw error;
     }
   }
@@ -158,9 +158,11 @@ export class DashboardServer {
     // Add request logging for debugging
     this.app.use((req: Request, res: Response, next: NextFunction) => {
       this.logger.debug(`${req.method} ${req.path}`, {
-        origin: req.get('Origin'),
-        userAgent: req.get('User-Agent'),
-        ip: req.ip
+        context: {
+          origin: req.get('Origin'),
+          userAgent: req.get('User-Agent'),
+          ip: req.ip
+        }
       });
       next();
     });
@@ -198,7 +200,7 @@ export class DashboardServer {
         };
         res.json({ success: true, data: status });
       } catch (error) {
-        this.logger.error('Error getting system status:', error);
+        this.logger.error('Error getting system status:', error as Error);
         res.status(500).json({ success: false, error: 'Internal server error' });
       }
     });
@@ -357,7 +359,7 @@ export class DashboardServer {
 
   private setupWebSocket(): void {
     this.io.on('connection', (socket) => {
-      this.logger.info('WebSocket client connected:', socket.id);
+      this.logger.info('WebSocket client connected:', { context: { socketId: socket.id } });
       
       socket.emit('welcome', {
         message: 'Connected to AI Crypto Trading Agent',
@@ -365,7 +367,7 @@ export class DashboardServer {
       });
 
       socket.on('disconnect', () => {
-        this.logger.info('WebSocket client disconnected:', socket.id);
+        this.logger.info('WebSocket client disconnected:', { context: { socketId: socket.id } });
       });
     });
   }

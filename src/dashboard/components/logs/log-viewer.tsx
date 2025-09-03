@@ -367,7 +367,7 @@ export function LogViewer({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center space-x-2">
-            <AnimatedEmoji emoji={TradingEmojis.scroll} animation="pulse" />
+            <AnimatedEmoji emoji={TradingEmojis.data} animation="pulse" />
             <span>Real-time Log Viewer</span>
           </h2>
           <p className="text-muted-foreground">Live system and trading activity logs</p>
@@ -496,7 +496,7 @@ export function LogViewer({
             ))
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              <AnimatedEmoji emoji={TradingEmojis.search} size="lg" />
+              <AnimatedEmoji emoji={TradingEmojis.question} size="lg" />
               <p className="mt-2">No logs match your current filters</p>
             </div>
           )}

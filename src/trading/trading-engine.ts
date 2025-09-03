@@ -28,6 +28,8 @@ import { PortfolioRiskManager } from './risk/portfolio-risk-manager';
 import { MovingAverageStrategy } from './strategies/moving-average';
 import { MACDStrategy } from './strategies/macd';
 import { RSIStrategy } from './strategies/rsi';
+import { TradingErrorHandler, TradingErrorType, ErrorSeverity } from '../core/error-handling/trading-error-handler';
+import { SystemErrorManager, SystemComponent } from '../core/error-handling/system-error-manager';
 
 /**
  * Trading engine configuration interface
@@ -96,12 +98,18 @@ export class TradingEngine extends EventEmitter {
   private isInitialized: boolean = false;
   private marketDataInterval: NodeJS.Timeout | null = null;
   private healthCheckInterval: NodeJS.Timeout | null = null;
+  private tradingErrorHandler: TradingErrorHandler;
+  private systemErrorManager: SystemErrorManager;
 
   constructor(config: TradingEngineConfig) {
     super();
     this.logger = new Logger('TradingEngine');
     this.config = config;
     this.strategies = new Map();
+    
+    // Initialize error handling
+    this.tradingErrorHandler = new TradingErrorHandler();
+    this.systemErrorManager = new SystemErrorManager();
     
     // Initialize components
     this.gateIOClient = new GateIOClient({
@@ -121,7 +129,10 @@ export class TradingEngine extends EventEmitter {
       takeProfitPercent: config.riskSettings.takeProfitPercent
     });
 
-    this.logger.info('Trading Engine created', {
+    // Setup error handling listeners
+    this.setupErrorHandling();
+
+    this.logger.info('Trading Engine created with comprehensive error handling', {
       exchange: config.exchange,
       testnet: config.testnet,
       defaultStrategy: config.defaultStrategy
@@ -243,6 +254,9 @@ export class TradingEngine extends EventEmitter {
       // Close all positions (if configured)
       // await this.closeAllPositions();
 
+      // Shutdown error handling systems
+      this.systemErrorManager.shutdown();
+
       this.isRunning = false;
       this.logger.info('✅ Trading Engine shutdown complete');
 
@@ -339,11 +353,26 @@ export class TradingEngine extends EventEmitter {
   }
 
   /**
-   * Execute a manual trade
+   * Execute a manual trade with comprehensive error handling
    */
   async executeTrade(symbol: string, side: 'buy' | 'sell', amount: number, price?: number): Promise<any> {
-    try {
+    return this.tradingErrorHandler.handleError({
+      type: TradingErrorType.ORDER_EXECUTION_FAILED,
+      severity: ErrorSeverity.HIGH,
+      message: 'Manual trade execution',
+      component: 'TradingEngine',
+      context: { symbol, side, amount, price }
+    }, async () => {
       this.logger.info('Executing manual trade', { symbol, side, amount, price });
+
+      // Position safety check
+      await this.tradingErrorHandler.validatePositionSafety({
+        type: 'order',
+        side,
+        symbol,
+        amount,
+        maxPositionSize: this.config.riskSettings.maxPositionSize
+      });
 
       // Risk check
       const riskCheck = await this.riskManager.validateTrade({
@@ -354,7 +383,10 @@ export class TradingEngine extends EventEmitter {
       });
 
       if (!riskCheck.approved) {
-        throw new Error(`Trade rejected by risk manager: ${riskCheck.reason}`);
+        throw this.tradingErrorHandler.createError(TradingErrorType.RISK_LIMIT_EXCEEDED, {
+          message: `Trade rejected by risk manager: ${riskCheck.reason}`,
+          details: { riskCheck, symbol, side, amount }
+        });
       }
 
       // Execute order
@@ -370,11 +402,7 @@ export class TradingEngine extends EventEmitter {
       this.emit('tradeExecuted', order);
 
       return order;
-
-    } catch (error) {
-      this.logger.error('Manual trade execution failed:', error);
-      throw error;
-    }
+    });
   }
 
   /**
@@ -579,19 +607,82 @@ export class TradingEngine extends EventEmitter {
   }
 
   /**
-   * Get trading engine status for monitoring
+   * Setup error handling listeners and recovery mechanisms
+   */
+  private setupErrorHandling(): void {
+    // Listen for system error manager events
+    this.systemErrorManager.on('restartComponent', async (component: SystemComponent) => {
+      if (component === SystemComponent.TRADING_ENGINE) {
+        await this.handleComponentRestart();
+      }
+    });
+
+    // Listen for trading error escalations
+    this.tradingErrorHandler.on('errorEscalated', (error) => {
+      this.systemErrorManager.handleComponentError(SystemComponent.TRADING_ENGINE, error);
+    });
+
+    // Handle emergency stops
+    this.tradingErrorHandler.on('emergencyStop', async (reason, cancelledOrders, totalOrders) => {
+      this.logger.warn(`Emergency stop triggered: ${reason}`, {
+        cancelledOrders,
+        totalOrders
+      });
+      
+      await this.systemErrorManager.handleComponentError(SystemComponent.TRADING_ENGINE, {
+        type: 'EMERGENCY_STOP',
+        severity: 'CRITICAL',
+        message: `Emergency stop: ${reason}`,
+        details: { cancelledOrders, totalOrders }
+      });
+    });
+  }
+
+  /**
+   * Handle component restart request
+   */
+  private async handleComponentRestart(): Promise<void> {
+    try {
+      this.logger.info('Handling trading engine component restart...');
+      
+      // Stop current operations
+      if (this.isRunning) {
+        await this.shutdown();
+      }
+      
+      // Wait a moment for cleanup
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Reinitialize and restart
+      await this.initialize();
+      await this.start();
+      
+      this.logger.info('Trading engine component restart completed');
+      
+    } catch (error) {
+      this.logger.error('Component restart failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get comprehensive trading engine status including error metrics
    */
   getStatus(): {
     isRunning: boolean;
     isInitialized: boolean;
     strategiesCount: number;
     timestamp: number;
+    errorStats: any;
+    systemHealth: any;
   } {
     return {
       isRunning: this.isRunning,
       isInitialized: this.isInitialized,
       strategiesCount: this.strategies.size,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      errorStats: this.tradingErrorHandler.getErrorStats(),
+      systemHealth: this.systemErrorManager.getErrorDashboard().healthMetrics
     };
   }
 }

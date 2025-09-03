@@ -636,7 +636,7 @@ export class IntelNucEmailService {
               {{#each strategyBreakdown}}
               <div class="strategy-item">
                 <span>{{@key}}</span>
-                <span>{{this.trades}} trades • <span class="positive">${{this.pnl}}</span></span>
+                <span>{{this.trades}} trades • <span class="positive">{{this.pnl}}</span></span>
               </div>
               {{/each}}
             </div>
