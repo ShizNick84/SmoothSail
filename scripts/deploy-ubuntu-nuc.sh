@@ -44,37 +44,158 @@ check_root() {
     fi
 }
 
+# Function to check system requirements
+check_system_requirements() {
+    print_status "Checking system requirements..."
+    
+    # Check Ubuntu version
+    if ! grep -q "Ubuntu" /etc/os-release; then
+        print_error "This script requires Ubuntu OS"
+        exit 1
+    fi
+    
+    local ubuntu_version=$(lsb_release -rs 2>/dev/null || echo "unknown")
+    print_status "Detected Ubuntu version: $ubuntu_version"
+    
+    # Check available memory (minimum 4GB recommended)
+    local mem_gb=$(free -g | awk 'NR==2{print $2}')
+    if [[ $mem_gb -lt 4 ]]; then
+        print_warning "System has ${mem_gb}GB RAM, 4GB+ recommended for optimal performance"
+    else
+        print_success "Memory check passed: ${mem_gb}GB RAM available"
+    fi
+    
+    # Check available disk space (minimum 20GB required)
+    local disk_gb=$(df -BG / | awk 'NR==2{print $4}' | sed 's/G//')
+    if [[ $disk_gb -lt 20 ]]; then
+        print_error "At least 20GB free disk space required (found: ${disk_gb}GB)"
+        exit 1
+    else
+        print_success "Disk space check passed: ${disk_gb}GB available"
+    fi
+    
+    # Check internet connectivity
+    print_status "Testing internet connectivity..."
+    if ! ping -c 1 -W 5 8.8.8.8 &> /dev/null; then
+        print_error "Internet connectivity required for deployment"
+        exit 1
+    else
+        print_success "Internet connectivity check passed"
+    fi
+    
+    # Check if ports are available
+    local ports_to_check=(3000 3001 5432 8443)
+    for port in "${ports_to_check[@]}"; do
+        if netstat -tuln 2>/dev/null | grep -q ":$port "; then
+            print_warning "Port $port is already in use"
+        fi
+    done
+    
+    print_success "System requirements check completed"
+}
+
 # Function to update system packages
 update_system() {
     print_status "Updating system packages..."
-    apt update && apt upgrade -y
+    
+    # Update package lists
+    if ! apt update; then
+        print_error "Failed to update package lists"
+        exit 1
+    fi
+    
+    # Upgrade packages (non-interactive)
+    export DEBIAN_FRONTEND=noninteractive
+    if ! apt upgrade -y; then
+        print_warning "Some packages failed to upgrade, continuing..."
+    fi
+    
+    # Install essential packages first
+    if ! apt install -y curl wget; then
+        print_error "Failed to install essential packages"
+        exit 1
+    fi
+    
     print_success "System packages updated"
 }
 
 # Function to install system dependencies
 install_dependencies() {
     print_status "Installing system dependencies..."
-    apt install -y \
-        curl \
-        wget \
-        git \
-        build-essential \
-        software-properties-common \
-        apt-transport-https \
-        ca-certificates \
-        gnupg \
-        lsb-release \
-        ufw \
-        fail2ban \
-        logrotate \
-        htop \
-        nano \
-        vim \
-        unzip \
-        openssh-client \
-        postgresql \
-        postgresql-contrib \
-        nginx
+    
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # Install packages in groups for better error handling
+    local essential_packages=(
+        "curl"
+        "wget" 
+        "git"
+        "build-essential"
+        "software-properties-common"
+        "apt-transport-https"
+        "ca-certificates"
+        "gnupg"
+        "lsb-release"
+    )
+    
+    local security_packages=(
+        "ufw"
+        "fail2ban"
+    )
+    
+    local utility_packages=(
+        "logrotate"
+        "htop"
+        "nano"
+        "vim"
+        "unzip"
+        "openssh-client"
+        "net-tools"
+        "netstat-nat"
+    )
+    
+    local database_packages=(
+        "postgresql"
+        "postgresql-contrib"
+        "postgresql-client"
+    )
+    
+    local web_packages=(
+        "nginx"
+    )
+    
+    # Install essential packages
+    print_status "Installing essential packages..."
+    if ! apt install -y "${essential_packages[@]}"; then
+        print_error "Failed to install essential packages"
+        exit 1
+    fi
+    
+    # Install security packages
+    print_status "Installing security packages..."
+    if ! apt install -y "${security_packages[@]}"; then
+        print_warning "Some security packages failed to install"
+    fi
+    
+    # Install utility packages
+    print_status "Installing utility packages..."
+    if ! apt install -y "${utility_packages[@]}"; then
+        print_warning "Some utility packages failed to install"
+    fi
+    
+    # Install database packages
+    print_status "Installing PostgreSQL..."
+    if ! apt install -y "${database_packages[@]}"; then
+        print_error "Failed to install PostgreSQL"
+        exit 1
+    fi
+    
+    # Install web server (optional)
+    print_status "Installing Nginx..."
+    if ! apt install -y "${web_packages[@]}"; then
+        print_warning "Nginx installation failed, continuing without it"
+    fi
+    
     print_success "System dependencies installed"
 }
 
@@ -82,16 +203,55 @@ install_dependencies() {
 install_nodejs() {
     print_status "Installing Node.js 18..."
     
+    # Check if Node.js is already installed with correct version
+    if command -v node &> /dev/null; then
+        local current_version=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+        if [[ $current_version -ge 18 ]]; then
+            print_success "Node.js $(node --version) is already installed"
+            return 0
+        else
+            print_status "Node.js version $current_version is too old, upgrading to v18..."
+        fi
+    fi
+    
     # Add NodeSource repository
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-    apt install -y nodejs
+    print_status "Adding NodeSource repository..."
+    if ! curl -fsSL https://deb.nodesource.com/setup_18.x | bash -; then
+        print_error "Failed to add NodeSource repository"
+        exit 1
+    fi
+    
+    # Install Node.js
+    print_status "Installing Node.js from NodeSource..."
+    if ! apt install -y nodejs; then
+        print_error "Failed to install Node.js"
+        exit 1
+    fi
     
     # Verify installation
-    node_version=$(node --version)
-    npm_version=$(npm --version)
+    if ! command -v node &> /dev/null; then
+        print_error "Node.js installation verification failed"
+        exit 1
+    fi
+    
+    if ! command -v npm &> /dev/null; then
+        print_error "npm installation verification failed"
+        exit 1
+    fi
+    
+    local node_version=$(node --version)
+    local npm_version=$(npm --version)
     
     print_success "Node.js installed: $node_version"
     print_success "npm installed: $npm_version"
+    
+    # Install global packages
+    print_status "Installing global npm packages..."
+    if ! npm install -g pm2; then
+        print_warning "Failed to install PM2 globally"
+    else
+        print_success "PM2 installed globally"
+    fi
 }
 
 # Function to configure PostgreSQL
@@ -99,25 +259,166 @@ configure_postgresql() {
     print_status "Configuring PostgreSQL..."
     
     # Start and enable PostgreSQL
-    systemctl start postgresql
-    systemctl enable postgresql
+    if ! systemctl start postgresql; then
+        print_error "Failed to start PostgreSQL service"
+        return 1
+    fi
     
-    # Create trading database and user
-    sudo -u postgres psql -c "CREATE USER $TRADING_USER WITH PASSWORD 'trading_secure_password_2024';"
-    sudo -u postgres psql -c "CREATE DATABASE trading_agent OWNER $TRADING_USER;"
-    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE trading_agent TO $TRADING_USER;"
+    if ! systemctl enable postgresql; then
+        print_warning "Failed to enable PostgreSQL service"
+    fi
     
-    # Configure PostgreSQL for local connections
-    PG_VERSION=$(sudo -u postgres psql -t -c "SELECT version();" | grep -oP '\d+\.\d+' | head -1)
-    PG_CONFIG_DIR="/etc/postgresql/$PG_VERSION/main"
+    # Wait for PostgreSQL to be ready
+    print_status "Waiting for PostgreSQL to be ready..."
+    local max_attempts=30
+    local attempt=0
+    
+    while ! sudo -u postgres psql -c "SELECT 1;" &>/dev/null; do
+        attempt=$((attempt + 1))
+        if [ $attempt -ge $max_attempts ]; then
+            print_error "PostgreSQL failed to start after $max_attempts attempts"
+            return 1
+        fi
+        print_status "Waiting for PostgreSQL... (attempt $attempt/$max_attempts)"
+        sleep 2
+    done
+    
+    print_success "PostgreSQL is ready"
+    
+    # Create trading database and user (with error handling)
+    print_status "Creating database user and database..."
+    
+    # Check if user already exists
+    if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$TRADING_USER'" | grep -q 1; then
+        print_warning "User '$TRADING_USER' already exists, skipping user creation"
+    else
+        if ! sudo -u postgres psql -c "CREATE USER $TRADING_USER WITH PASSWORD 'trading_secure_password_2024';"; then
+            print_error "Failed to create PostgreSQL user"
+            return 1
+        fi
+        print_success "Created PostgreSQL user: $TRADING_USER"
+    fi
+    
+    # Check if database already exists
+    if sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw trading_agent; then
+        print_warning "Database 'trading_agent' already exists, skipping database creation"
+    else
+        if ! sudo -u postgres psql -c "CREATE DATABASE trading_agent OWNER $TRADING_USER;"; then
+            print_error "Failed to create PostgreSQL database"
+            return 1
+        fi
+        print_success "Created PostgreSQL database: trading_agent"
+    fi
+    
+    # Grant privileges
+    if ! sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE trading_agent TO $TRADING_USER;"; then
+        print_warning "Failed to grant privileges (user may already have them)"
+    fi
+    
+    # Find PostgreSQL configuration directory with better detection
+    print_status "Configuring PostgreSQL authentication..."
+    
+    # Try multiple methods to find PostgreSQL version and config
+    PG_VERSION=""
+    PG_CONFIG_DIR=""
+    
+    # Method 1: Get version from PostgreSQL directly
+    if [ -z "$PG_VERSION" ]; then
+        PG_VERSION=$(sudo -u postgres psql -t -c "SELECT version();" 2>/dev/null | grep -oP 'PostgreSQL \K\d+(\.\d+)?' | head -1)
+    fi
+    
+    # Method 2: Check installed packages
+    if [ -z "$PG_VERSION" ]; then
+        PG_VERSION=$(dpkg -l | grep postgresql-[0-9] | head -1 | awk '{print $2}' | grep -oP '\d+(\.\d+)?')
+    fi
+    
+    # Method 3: Check directory structure
+    if [ -z "$PG_VERSION" ]; then
+        if [ -d "/etc/postgresql" ]; then
+            PG_VERSION=$(ls /etc/postgresql/ | grep -E '^[0-9]+(\.[0-9]+)?$' | sort -V | tail -1)
+        fi
+    fi
+    
+    print_status "Detected PostgreSQL version: $PG_VERSION"
+    
+    # Find config directory
+    if [ -n "$PG_VERSION" ]; then
+        # Try common paths
+        for path in "/etc/postgresql/$PG_VERSION/main" "/etc/postgresql/$PG_VERSION" "/etc/postgresql/main"; do
+            if [ -f "$path/pg_hba.conf" ]; then
+                PG_CONFIG_DIR="$path"
+                break
+            fi
+        done
+    fi
+    
+    # Fallback: search for pg_hba.conf
+    if [ -z "$PG_CONFIG_DIR" ]; then
+        PG_HBA_PATH=$(find /etc/postgresql -name "pg_hba.conf" 2>/dev/null | head -1)
+        if [ -n "$PG_HBA_PATH" ]; then
+            PG_CONFIG_DIR=$(dirname "$PG_HBA_PATH")
+        fi
+    fi
+    
+    if [ -z "$PG_CONFIG_DIR" ] || [ ! -f "$PG_CONFIG_DIR/pg_hba.conf" ]; then
+        print_error "Could not find PostgreSQL configuration directory"
+        print_error "Please manually configure pg_hba.conf for md5 authentication"
+        return 1
+    fi
+    
+    print_status "Using PostgreSQL config directory: $PG_CONFIG_DIR"
+    
+    # Backup original pg_hba.conf
+    if [ ! -f "$PG_CONFIG_DIR/pg_hba.conf.backup" ]; then
+        cp "$PG_CONFIG_DIR/pg_hba.conf" "$PG_CONFIG_DIR/pg_hba.conf.backup"
+        print_status "Backed up original pg_hba.conf"
+    fi
     
     # Update pg_hba.conf for local authentication
-    sed -i "s/#local   all             all                                     peer/local   all             all                                     md5/" "$PG_CONFIG_DIR/pg_hba.conf"
+    # Look for the local all all peer line and change to md5
+    if grep -q "^local.*all.*all.*peer" "$PG_CONFIG_DIR/pg_hba.conf"; then
+        sed -i 's/^local\s*all\s*all\s*peer$/local   all             all                                     md5/' "$PG_CONFIG_DIR/pg_hba.conf"
+        print_success "Updated pg_hba.conf for md5 authentication"
+    elif grep -q "^#local.*all.*all.*peer" "$PG_CONFIG_DIR/pg_hba.conf"; then
+        sed -i 's/^#local\s*all\s*all\s*peer$/local   all             all                                     md5/' "$PG_CONFIG_DIR/pg_hba.conf"
+        print_success "Enabled and updated pg_hba.conf for md5 authentication"
+    else
+        # Add the line if it doesn't exist
+        echo "local   all             all                                     md5" >> "$PG_CONFIG_DIR/pg_hba.conf"
+        print_success "Added md5 authentication line to pg_hba.conf"
+    fi
     
-    # Restart PostgreSQL
-    systemctl restart postgresql
+    # Restart PostgreSQL to apply changes
+    print_status "Restarting PostgreSQL to apply configuration changes..."
+    if ! systemctl restart postgresql; then
+        print_error "Failed to restart PostgreSQL"
+        return 1
+    fi
     
-    print_success "PostgreSQL configured"
+    # Wait for PostgreSQL to be ready again
+    sleep 3
+    local restart_attempts=10
+    local restart_attempt=0
+    
+    while ! sudo -u postgres psql -c "SELECT 1;" &>/dev/null; do
+        restart_attempt=$((restart_attempt + 1))
+        if [ $restart_attempt -ge $restart_attempts ]; then
+            print_error "PostgreSQL failed to restart properly"
+            return 1
+        fi
+        print_status "Waiting for PostgreSQL restart... (attempt $restart_attempt/$restart_attempts)"
+        sleep 2
+    done
+    
+    # Test database connection with new authentication
+    print_status "Testing database connection..."
+    if PGPASSWORD='trading_secure_password_2024' psql -h localhost -U "$TRADING_USER" -d trading_agent -c "SELECT 1;" &>/dev/null; then
+        print_success "Database connection test successful"
+    else
+        print_warning "Database connection test failed - you may need to manually configure authentication"
+    fi
+    
+    print_success "PostgreSQL configuration completed"
 }
 
 # Function to create trading user and directories
@@ -126,22 +427,50 @@ create_trading_user() {
     
     # Create system user
     if ! id "$TRADING_USER" &>/dev/null; then
-        useradd -r -s /bin/bash -d "$TRADING_HOME" -m "$TRADING_USER"
+        if ! useradd -r -s /bin/bash -d "$TRADING_HOME" -m "$TRADING_USER"; then
+            print_error "Failed to create user: $TRADING_USER"
+            exit 1
+        fi
         print_success "Created user: $TRADING_USER"
     else
         print_warning "User $TRADING_USER already exists"
     fi
     
     # Create directory structure
-    mkdir -p "$TRADING_HOME"/{config,logs,scripts,keys,backups}
-    mkdir -p "$LOG_DIR"
+    print_status "Creating directory structure..."
+    local directories=(
+        "$TRADING_HOME/config"
+        "$TRADING_HOME/logs" 
+        "$TRADING_HOME/scripts"
+        "$TRADING_HOME/keys"
+        "$TRADING_HOME/backups"
+        "$TRADING_HOME/data"
+        "$LOG_DIR"
+    )
+    
+    for dir in "${directories[@]}"; do
+        if ! mkdir -p "$dir"; then
+            print_error "Failed to create directory: $dir"
+            exit 1
+        fi
+    done
     
     # Set ownership and permissions
-    chown -R "$TRADING_USER:$TRADING_USER" "$TRADING_HOME"
-    chown -R "$TRADING_USER:$TRADING_USER" "$LOG_DIR"
+    print_status "Setting permissions..."
+    if ! chown -R "$TRADING_USER:$TRADING_USER" "$TRADING_HOME"; then
+        print_error "Failed to set ownership for $TRADING_HOME"
+        exit 1
+    fi
+    
+    if ! chown -R "$TRADING_USER:$TRADING_USER" "$LOG_DIR"; then
+        print_error "Failed to set ownership for $LOG_DIR"
+        exit 1
+    fi
     
     # Set secure permissions for keys directory
     chmod 700 "$KEYS_DIR"
+    chmod 755 "$TRADING_HOME"/{config,logs,scripts,backups,data}
+    chmod 755 "$LOG_DIR"
     
     print_success "Trading user and directories created"
 }
@@ -152,7 +481,10 @@ configure_ssh_keys() {
     
     # Check if keys directory exists
     if [[ ! -d "$KEYS_DIR" ]]; then
-        mkdir -p "$KEYS_DIR"
+        if ! mkdir -p "$KEYS_DIR"; then
+            print_error "Failed to create keys directory"
+            exit 1
+        fi
         chown "$TRADING_USER:$TRADING_USER" "$KEYS_DIR"
         chmod 700 "$KEYS_DIR"
     fi
@@ -160,16 +492,40 @@ configure_ssh_keys() {
     # Generate SSH key pair if it doesn't exist
     SSH_KEY_PATH="$KEYS_DIR/oracle_key"
     if [[ ! -f "$SSH_KEY_PATH" ]]; then
-        sudo -u "$TRADING_USER" ssh-keygen -t rsa -b 4096 -f "$SSH_KEY_PATH" -N "" -C "trading-agent@intel-nuc"
+        print_status "Generating SSH key pair for Oracle Cloud..."
+        
+        if ! sudo -u "$TRADING_USER" ssh-keygen -t rsa -b 4096 -f "$SSH_KEY_PATH" -N "" -C "trading-agent@intel-nuc"; then
+            print_error "Failed to generate SSH key pair"
+            exit 1
+        fi
+        
+        # Set proper permissions
         chmod 600 "$SSH_KEY_PATH"
         chmod 644 "$SSH_KEY_PATH.pub"
-        print_success "SSH key pair generated"
         
-        print_warning "IMPORTANT: Copy the public key to Oracle Cloud instance:"
-        print_warning "Public key location: $SSH_KEY_PATH.pub"
-        print_warning "Run: cat $SSH_KEY_PATH.pub"
+        # Verify key was created
+        if [[ ! -f "$SSH_KEY_PATH" ]] || [[ ! -f "$SSH_KEY_PATH.pub" ]]; then
+            print_error "SSH key generation failed - files not created"
+            exit 1
+        fi
+        
+        print_success "SSH key pair generated successfully"
+        
+        print_warning ""
+        print_warning "🔑 IMPORTANT: Add this SSH public key to your Oracle Cloud instance:"
+        print_warning "Key location: $SSH_KEY_PATH.pub"
+        print_warning ""
+        print_warning "Public key content:"
+        cat "$SSH_KEY_PATH.pub"
+        print_warning ""
     else
-        print_warning "SSH keys already exist"
+        print_warning "SSH keys already exist at $SSH_KEY_PATH"
+        
+        # Verify existing keys
+        if [[ -f "$SSH_KEY_PATH.pub" ]]; then
+            print_status "Existing public key:"
+            cat "$SSH_KEY_PATH.pub"
+        fi
     fi
 }
 
@@ -260,14 +616,7 @@ EOF
     print_success "Log rotation configured"
 }
 
-# Function to install global npm packages
-install_global_npm_packages() {
-    print_status "Installing global npm packages..."
-    
-    npm install -g pm2 typescript ts-node
-    
-    print_success "Global npm packages installed"
-}
+
 
 # Function to create systemd service templates
 create_service_templates() {
@@ -440,41 +789,135 @@ EOF
     print_success "Backup script created"
 }
 
+# Function to validate deployment
+validate_deployment() {
+    print_status "Validating deployment..."
+    
+    local validation_failed=false
+    
+    # Check if trading user exists
+    if ! id "$TRADING_USER" &>/dev/null; then
+        print_error "Trading user not created properly"
+        validation_failed=true
+    fi
+    
+    # Check if directories exist
+    local required_dirs=(
+        "$TRADING_HOME"
+        "$TRADING_HOME/keys"
+        "$TRADING_HOME/scripts"
+        "$LOG_DIR"
+    )
+    
+    for dir in "${required_dirs[@]}"; do
+        if [[ ! -d "$dir" ]]; then
+            print_error "Required directory missing: $dir"
+            validation_failed=true
+        fi
+    done
+    
+    # Check if SSH key exists
+    if [[ ! -f "$KEYS_DIR/oracle_key" ]]; then
+        print_error "SSH key not generated properly"
+        validation_failed=true
+    fi
+    
+    # Check if PostgreSQL is running
+    if ! systemctl is-active --quiet postgresql; then
+        print_error "PostgreSQL is not running"
+        validation_failed=true
+    fi
+    
+    # Check if database exists
+    if ! sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw trading_agent; then
+        print_error "Trading database not created properly"
+        validation_failed=true
+    fi
+    
+    # Check if Node.js is installed
+    if ! command -v node &> /dev/null; then
+        print_error "Node.js not installed properly"
+        validation_failed=true
+    fi
+    
+    if [[ "$validation_failed" == "true" ]]; then
+        print_error "Deployment validation failed!"
+        return 1
+    else
+        print_success "Deployment validation passed!"
+        return 0
+    fi
+}
+
 # Main deployment function
 main() {
     print_status "Starting Intel NUC Ubuntu deployment..."
     
+    # Pre-deployment checks
     check_root
+    check_system_requirements
+    
+    # System setup
     update_system
     install_dependencies
     install_nodejs
-    configure_postgresql
+    
+    # User and directory setup
     create_trading_user
+    
+    # Database setup
+    configure_postgresql
+    
+    # Security setup
     configure_ssh_keys
     configure_firewall
     configure_fail2ban
+    
+    # System configuration
     configure_logrotate
-    install_global_npm_packages
     create_service_templates
     setup_monitoring
     create_backup_script
     
+    # Validate deployment
+    if ! validate_deployment; then
+        print_error "Deployment validation failed. Please check the errors above."
+        exit 1
+    fi
+    
     print_success "Intel NUC Ubuntu deployment completed successfully!"
     print_warning ""
-    print_warning "NEXT STEPS:"
-    print_warning "1. Copy your Oracle Cloud public key to: $KEYS_DIR/oracle_key.pub"
-    print_warning "2. Add the public key to your Oracle Cloud instance authorized_keys"
-    print_warning "3. Create and configure the .env file in $TRADING_HOME"
-    print_warning "4. Deploy your application code to $TRADING_HOME"
-    print_warning "5. Install npm dependencies and build the application"
-    print_warning "6. Enable and start the services:"
+    print_warning "🎉 DEPLOYMENT COMPLETE! 🎉"
+    print_warning ""
+    print_warning "📋 NEXT STEPS:"
+    print_warning "1. Add this SSH public key to your Oracle Cloud instance:"
+    print_warning ""
+    if [[ -f "$KEYS_DIR/oracle_key.pub" ]]; then
+        echo "   $(cat "$KEYS_DIR/oracle_key.pub")"
+    fi
+    print_warning ""
+    print_warning "2. Clone your SmoothSail repository:"
+    print_warning "   sudo su - trading"
+    print_warning "   cd /opt/trading-agent"
+    print_warning "   git clone https://github.com/ShizNick84/SmoothSail.git ."
+    print_warning ""
+    print_warning "3. Install dependencies and build:"
+    print_warning "   npm install"
+    print_warning "   npm run build"
+    print_warning ""
+    print_warning "4. Configure environment:"
+    print_warning "   cp .env.example .env"
+    print_warning "   nano .env"
+    print_warning ""
+    print_warning "5. Start services:"
+    print_warning "   exit  # Back to your user"
     print_warning "   sudo systemctl enable ssh-tunnel trading-agent trading-dashboard"
     print_warning "   sudo systemctl start ssh-tunnel trading-agent trading-dashboard"
     print_warning ""
-    print_warning "SSH Public Key for Oracle Cloud:"
-    if [[ -f "$KEYS_DIR/oracle_key.pub" ]]; then
-        cat "$KEYS_DIR/oracle_key.pub"
-    fi
+    print_warning "🔧 USEFUL COMMANDS:"
+    print_warning "   Check status: sudo systemctl status trading-agent"
+    print_warning "   View logs: sudo journalctl -u trading-agent -f"
+    print_warning "   Health check: /opt/trading-agent/scripts/health-check.sh"
 }
 
 # Run main function
