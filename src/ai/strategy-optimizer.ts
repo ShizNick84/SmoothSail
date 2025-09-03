@@ -70,3 +70,4 @@ interface GeneratedStrategy {
   };
   createdAt: Date;
   lastOptimized?: Date;
+}
