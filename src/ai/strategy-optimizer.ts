@@ -54,4 +54,19 @@ interface StrategyGenerationRequest {
 interface GeneratedStrategy {
   id: string;
   name: string;
-  type:
+  type: 'momentum' | 'mean_reversion' | 'breakout' | 'arbitrage' | 'grid' | 'dca';
+  code: string;
+  parameters: Record<string, any>;
+  riskManagement: {
+    stopLoss: number;
+    takeProfit: number;
+    maxPositionSize: number;
+  };
+  backtestResults?: {
+    totalReturn: number;
+    sharpeRatio: number;
+    maxDrawdown: number;
+    winRate: number;
+  };
+  createdAt: Date;
+  lastOptimized?: Date;

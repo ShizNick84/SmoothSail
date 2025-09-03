@@ -93,7 +93,7 @@ interface StrategyOptimizationRequest {
   marketData: any[];
   optimizationGoals: {
     improveWinRate?: boolean;
-    reduceDraw down?: boolean;
+    reduceDrawdown?: boolean;
     increaseProfit?: boolean;
     reduceRisk?: boolean;
   };
