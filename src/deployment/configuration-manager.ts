@@ -9,7 +9,7 @@
 
 import { existsSync, readFileSync, writeFileSync, chmodSync } from 'fs';
 import { join } from 'path';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 import { EncryptionService } from '../security/encryption-service';
 
 interface ConfigValidationRule {
@@ -126,7 +126,8 @@ export class ConfigurationManager {
 
     // Encrypt value if requested
     if (encrypt) {
-      value = await this.encryptionService.encrypt(value);
+      const encryptedData = await this.encryptionService.encryptData(value);
+      value = JSON.stringify(encryptedData);
     }
 
     // Update or add the key

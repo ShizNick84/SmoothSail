@@ -399,8 +399,8 @@ export class SystemMonitor {
       ]);
       
       // Get primary disk (usually the first one)
-      const primaryDisk = fsSize[0] || {};
-      const primaryBlockDevice = blockDevices[0] || {};
+      const primaryDisk = fsSize[0] || {} as any;
+      const primaryBlockDevice = blockDevices[0] || {} as any;
       
       return {
         total: primaryDisk.size || 0,
@@ -912,6 +912,51 @@ export class SystemMonitor {
       monitoringInterval: this.config.monitoringIntervalMs,
       timestamp: Date.now()
     };
+  }
+
+  /**
+   * Initialize the system monitor
+   */
+  public async initialize(): Promise<void> {
+    logger.info('🖥️ Initializing system monitor...');
+    await this.startHardwareMonitoring();
+    await this.initializePerformanceOptimization();
+    await this.setupThermalManagement();
+    logger.info('✅ System monitor initialized successfully');
+  }
+
+  /**
+   * Get current system metrics (alias for getCurrentMetrics)
+   */
+  public async getSystemMetrics(): Promise<{
+    cpu?: CPUMetrics;
+    ram?: RAMMetrics;
+    ssd?: SSDMetrics;
+    network?: NetworkMetrics;
+  }> {
+    return this.getCurrentMetrics();
+  }
+
+  /**
+   * Get current system resources (alias for getCurrentMetrics for AI compatibility)
+   */
+  public async getCurrentResources(): Promise<{
+    cpu?: CPUMetrics;
+    ram?: RAMMetrics;
+    ssd?: SSDMetrics;
+    network?: NetworkMetrics;
+  }> {
+    return this.getCurrentMetrics();
+  }
+
+  /**
+   * Shutdown the system monitor
+   */
+  public async shutdown(): Promise<void> {
+    logger.info('🛑 Shutting down system monitor...');
+    this.stopHardwareMonitoring();
+    this.activeAlerts.clear();
+    logger.info('✅ System monitor shutdown complete');
   }
 }
 

@@ -183,7 +183,7 @@ export class TelegramService {
         notification.message,
         {
           parse_mode: notification.parseMode || 'HTML',
-          disable_web_page_preview: notification.disableWebPagePreview,
+          link_preview_options: notification.disableWebPagePreview ? { is_disabled: true } : undefined,
           disable_notification: notification.disableNotification,
           reply_markup: notification.replyMarkup
         }
@@ -390,13 +390,8 @@ ${this.getSystemHealthEmoji(data)} <i>System is ${this.getSystemHealthStatus(dat
       throw new Error('TELEGRAM_BOT_TOKEN environment variable not found');
     }
 
-    try {
-      // Try to decrypt the token (if encrypted)
-      return await this.encryptionService.decrypt(encryptedToken);
-    } catch {
-      // If decryption fails, assume it's already plain text
-      return encryptedToken;
-    }
+    // Return token directly from environment
+    return encryptedToken;
   }
 
   /**

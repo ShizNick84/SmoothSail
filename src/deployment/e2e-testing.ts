@@ -10,7 +10,7 @@
 import { execSync } from 'child_process';
 import { existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 import axios from 'axios';
 
 interface E2ETestResult {
@@ -580,7 +580,7 @@ export class E2ETestRunner {
 
                 const responses = await Promise.all(requests);
                 const rateLimited = responses.some(r => 
-                  r.error === 429 || (typeof r.error === 'string' && r.error.includes('429'))
+                  ('error' in r && (r.error === 429 || (typeof r.error === 'string' && r.error.includes('429'))))
                 );
 
                 if (rateLimited) {
@@ -679,7 +679,7 @@ export class E2ETestRunner {
                 const responses = await Promise.all(requests);
                 const duration = Date.now() - startTime;
 
-                const successful = responses.filter(r => !r.error).length;
+                const successful = responses.filter(r => !('error' in r)).length;
                 const successRate = (successful / concurrentRequests) * 100;
 
                 if (successRate >= 95) {

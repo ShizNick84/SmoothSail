@@ -512,7 +512,7 @@ System ready for 24/7 operation! 💰
         price: data.price,
         pnl: data.pnl,
         balance: data.balance,
-        strategy: data.strategy,
+        reasoning: data.strategy,
         timestamp: data.timestamp
       }));
     }

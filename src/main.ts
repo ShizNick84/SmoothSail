@@ -13,6 +13,7 @@ import { DatabaseManager } from './core/database/database-manager';
 import { Logger } from './core/logging/logger';
 import { gracefulShutdown } from './core/shutdown/graceful-shutdown';
 import { PerformanceIntegration } from './infrastructure/performance/performance-integration';
+import { productionLoggingIntegration } from './core/logging/production-logging-integration';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -111,39 +112,43 @@ class TradingApplication {
     try {
       logger.info('🚀 Starting AI Crypto Trading Agent on Intel NUC...');
       
-      // Step 1: Validate Intel NUC environment
+      // Step 1: Initialize Production Logging and Monitoring
+      logger.info('📊 Initializing Production Logging and Monitoring...');
+      await productionLoggingIntegration.initializeProductionSetup();
+      
+      // Step 2: Validate Intel NUC environment
       logger.info('🖥️  Validating Intel NUC environment...');
       await this.validateIntelNUCEnvironment();
       
-      // Step 2: Initialize Intel NUC Performance Optimization
+      // Step 3: Initialize Intel NUC Performance Optimization
       logger.info('⚡ Initializing Intel NUC Performance Optimization...');
       await this.performanceIntegration.initialize();
       
-      // Step 3: Initialize Security Manager
+      // Step 4: Initialize Security Manager
       logger.info('🔐 Initializing Security Manager...');
       await this.securityManager.initializeEncryption();
       await this.securityManager.initializeAuditLogging();
       
-      // Step 4: Initialize Database (PostgreSQL on Intel NUC)
+      // Step 5: Initialize Database (PostgreSQL on Intel NUC)
       logger.info('💾 Initializing PostgreSQL Database...');
       await this.database.initialize();
       await this.validateDatabaseConnection();
       
-      // Step 5: Setup SSH Tunnel FIRST (Intel NUC -> Oracle Cloud -> Gate.io)
+      // Step 6: Setup SSH Tunnel FIRST (Intel NUC -> Oracle Cloud -> Gate.io)
       logger.info('🔗 Setting up SSH Tunnel to Oracle Cloud...');
       await this.setupSSHTunnel();
       await this.validateSSHTunnelConnection();
       
-      // Step 6: Initialize AI Engine with Intel NUC optimizations
+      // Step 7: Initialize AI Engine with Intel NUC optimizations
       logger.info('🤖 Initializing AI Engine...');
       await this.aiEngine.initialize();
       
-      // Step 7: Initialize Trading Engine (will use SSH tunnel)
+      // Step 8: Initialize Trading Engine (will use SSH tunnel)
       logger.info('📈 Initializing Trading Engine...');
       await this.tradingEngine.initialize();
       await this.validateTradingEngineConnection();
       
-      // Step 8: Setup Dashboard with all components for local network access
+      // Step 9: Setup Dashboard with all components for local network access
       logger.info('🖥️  Starting Dashboard Server for local network...');
       this.dashboardServer.setTradingEngine(this.tradingEngine);
       this.dashboardServer.setAIEngine(this.aiEngine);
@@ -170,7 +175,11 @@ class TradingApplication {
       logger.info('✅ AI Crypto Trading Agent is now running on Intel NUC!');
       logger.info(`📊 Dashboard available at: http://${process.env.HOST || '0.0.0.0'}:${process.env.DASHBOARD_PORT || '3000'}`);
       logger.info(`🔗 SSH Tunnel Status:`, await this.sshTunnelManager.getConnectionStatus());
-      logger.info(`💾 Database Status:`, await this.database.getHealth());
+      const dbHealth = await this.database.getHealth();
+      logger.info(`💾 Database Status:`, {
+        ...dbHealth,
+        timestamp: dbHealth.timestamp.toISOString()
+      });
       logger.info(`🤖 AI Engine Status:`, await this.aiEngine.getSystemHealth());
       
     } catch (error) {
@@ -421,7 +430,7 @@ class TradingApplication {
     
     const health = await this.tradingEngine.getSystemHealth();
     if (!health.isHealthy) {
-      throw new Error(`Trading engine connection failed: ${health.error}`);
+      throw new Error(`Trading engine connection failed: ${health.errors.join(', ')}`);
     }
     
     logger.info('✅ Trading engine API connection validated');

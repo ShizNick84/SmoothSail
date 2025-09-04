@@ -217,8 +217,8 @@ export class LLMEngine extends EventEmitter {
    * Prioritizes models that fit within memory constraints while maximizing capability
    */
   private async selectOptimalModel(systemResources: any): Promise<LLMModelConfig> {
-    const availableMemory = systemResources.memory.available;
-    const cpuCores = systemResources.cpu.cores;
+    const availableMemory = systemResources.ram?.available || 0;
+    const cpuCores = systemResources.cpu?.cores?.logical || 0;
     
     logger.info(`📊 System resources - Memory: ${availableMemory}MB, CPU cores: ${cpuCores}`);
     
@@ -385,8 +385,8 @@ export class LLMEngine extends EventEmitter {
         
         this.performanceMetrics = {
           ...this.performanceMetrics,
-          memoryUsage: systemResources.memory.used,
-          cpuUsage: systemResources.cpu.usage,
+          memoryUsage: systemResources.ram?.used || 0,
+          cpuUsage: systemResources.cpu?.utilization || 0,
           uptime: Math.floor((Date.now() - startTime) / 1000)
         };
         
@@ -557,6 +557,87 @@ export class LLMEngine extends EventEmitter {
       logger.error('❌ Error during LLM Engine shutdown:', error);
       throw error;
     }
+  }
+
+  /**
+   * Generate response using the loaded LLM model
+   * Main method for AI inference with Intel NUC optimization
+   */
+  public async generateResponse(prompt: string, options?: {
+    maxTokens?: number;
+    temperature?: number;
+    systemPrompt?: string;
+  }): Promise<string> {
+    try {
+      if (!this.isReady()) {
+        throw new Error('LLM Engine not initialized or model not loaded');
+      }
+
+      const startTime = Date.now();
+      
+      // Prepare the full prompt with system context
+      const systemPrompt = options?.systemPrompt || 'You are an AI assistant specialized in cryptocurrency trading analysis.';
+      const fullPrompt = `${systemPrompt}\n\nUser: ${prompt}\nAssistant:`;
+      
+      // Configure generation parameters
+      const generationConfig = {
+        maxTokens: options?.maxTokens || this.currentModel!.maxTokens,
+        temperature: options?.temperature || this.currentModel!.temperature,
+        topP: this.currentModel!.topP,
+        topK: this.currentModel!.topK,
+      };
+
+      // Generate response (mock implementation for now - would use actual model)
+      const response = await this.performInference(fullPrompt, generationConfig);
+      
+      // Update performance metrics
+      const inferenceTime = Date.now() - startTime;
+      this.updatePerformanceMetrics(inferenceTime, response.length);
+      
+      logger.debug(`🤖 Generated response in ${inferenceTime}ms`);
+      
+      return response;
+      
+    } catch (error) {
+      logger.error('❌ Failed to generate response:', error);
+      this.performanceMetrics.errorRate += 1;
+      throw error;
+    }
+  }
+
+  /**
+   * Perform actual model inference (placeholder implementation)
+   */
+  private async performInference(prompt: string, config: any): Promise<string> {
+    // Mock implementation - in production this would use actual model inference
+    if (prompt.toLowerCase().includes('market') || prompt.toLowerCase().includes('trading')) {
+      return `Based on current market analysis, I observe moderate volatility with mixed signals. 
+      The technical indicators suggest a cautious approach with potential for both upward and downward movement. 
+      Risk management should be prioritized in the current market conditions.`;
+    }
+    
+    if (prompt.toLowerCase().includes('buy') || prompt.toLowerCase().includes('sell')) {
+      return `Trading decision analysis: The current market conditions require careful evaluation of multiple factors including 
+      technical indicators, market sentiment, and risk tolerance. Consider position sizing and stop-loss levels 
+      before executing any trades.`;
+    }
+    
+    return `I understand your query about cryptocurrency trading. Based on the available data and market conditions, 
+    I recommend conducting thorough analysis before making any trading decisions. Please consider consulting 
+    multiple sources and maintaining proper risk management.`;
+  }
+
+  /**
+   * Update performance metrics after inference
+   */
+  private updatePerformanceMetrics(inferenceTime: number, responseLength: number): void {
+    this.performanceMetrics.inferenceTime = inferenceTime;
+    this.performanceMetrics.totalInferences += 1;
+    this.performanceMetrics.tokensPerSecond = responseLength / (inferenceTime / 1000);
+    
+    // Mock system resources for now
+    this.performanceMetrics.memoryUsage = 1024; // MB
+    this.performanceMetrics.cpuUsage = 50; // %
   }
 }
 

@@ -10,7 +10,7 @@
 import { execSync } from 'child_process';
 import { existsSync, writeFileSync, readFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 import { databaseSetup } from './database-setup';
 import * as cron from 'node-cron';
 
@@ -644,7 +644,7 @@ export class MonitoringAutomation {
       };
 
       // Determine overall status
-      const statuses = Object.values(healthStatus.checks).map(check => check.status);
+      const statuses = Object.values(healthStatus.checks).map(check => (check as any).status);
       if (statuses.includes('CRITICAL')) {
         healthStatus.overall = 'CRITICAL';
       } else if (statuses.includes('WARNING')) {

@@ -284,7 +284,8 @@ const PORT = 0; // Let system assign available port
 const HOST = process.env.HOST || '0.0.0.0';
 
 server.listen(PORT, HOST, () => {
-  const actualPort = server.address()?.port || 'unknown';
+  const address = server.address();
+  const actualPort = typeof address === 'object' && address ? address.port : PORT;
   console.log('✅ AI Crypto Trading Agent Dashboard started successfully!');
   console.log(`📊 Dashboard: http://${HOST}:${actualPort}`);
   console.log(`🔗 WebSocket: ws://${HOST}:${actualPort}`);

@@ -77,7 +77,7 @@ export class TradingErrorHandler extends EventEmitter {
   constructor() {
     super();
     this.logger = new Logger('TradingErrorHandler');
-    this.notificationService = new NotificationService();
+    this.notificationService = new NotificationService(this.logger);
     this.initializeRetryConfigs();
     this.startRetryProcessor();
   }
@@ -282,6 +282,7 @@ export class TradingErrorHandler extends EventEmitter {
         await this.notificationService.sendAlert({
           title: 'Trading Error',
           message: error.message,
+          priority: 'MEDIUM',
           errorId: error.id
         });
         break;

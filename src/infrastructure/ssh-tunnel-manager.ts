@@ -38,6 +38,8 @@ export interface TunnelConfig {
   compression: boolean;
   /** Enable SSH keep-alive */
   keepAlive: boolean;
+  /** Enable automatic reconnection */
+  autoReconnect?: boolean;
 }
 
 /**

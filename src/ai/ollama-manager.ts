@@ -73,13 +73,18 @@ interface ModelPerformanceMetrics {
 /**
  * Interface for AI analysis request
  */
-interface AIAnalysisRequest {
+interface AIAnalysisInput {
   prompt: string;
   modelType: 'trading' | 'sentiment' | 'code';
   priority: 'low' | 'medium' | 'high' | 'critical';
   maxTokens?: number;
   temperature?: number;
   context?: Record<string, any>;
+}
+
+interface AIAnalysisRequest extends AIAnalysisInput {
+  resolve: (value: AIAnalysisResponse) => void;
+  reject: (reason?: any) => void;
 }
 
 /**
@@ -230,7 +235,7 @@ export class OllamaManager extends EventEmitter {
 
       // Get system resources
       const systemResources = await this.systemMonitor.getCurrentResources();
-      logger.info(`📊 System resources - Memory: ${systemResources.memory.available}MB, CPU cores: ${systemResources.cpu.cores}`);
+      logger.info(`📊 System resources - Memory: ${systemResources.ram?.available || 0}MB, CPU cores: ${systemResources.cpu?.cores?.logical || 0}`);
 
       // Check available models
       await this.checkAvailableModels();
@@ -319,7 +324,7 @@ export class OllamaManager extends EventEmitter {
           
           // Check if we have enough disk space
           const systemResources = await this.systemMonitor.getCurrentResources();
-          if (systemResources.disk.available < config.memoryRequirement * 2) {
+          if ((systemResources.ssd?.free || 0) < config.memoryRequirement * 2) {
             logger.warn(`⚠️ Insufficient disk space for ${config.displayName}`);
             continue;
           }
@@ -357,7 +362,7 @@ export class OllamaManager extends EventEmitter {
       logger.info('🎯 Loading optimal initial model...');
       
       const systemResources = await this.systemMonitor.getCurrentResources();
-      const availableMemory = systemResources.memory.available;
+      const availableMemory = systemResources.ram?.available || 0;
       
       // Find the best model that fits in available memory (leave 2GB buffer)
       const viableModels = this.MODEL_CONFIGS.filter(
@@ -408,13 +413,13 @@ export class OllamaManager extends EventEmitter {
       
       // Check system resources
       const systemResources = await this.systemMonitor.getCurrentResources();
-      if (config.memoryRequirement > systemResources.memory.available) {
+      if (config.memoryRequirement > (systemResources.ram?.available || 0)) {
         // Try to unload other models to make space
         await this.unloadLeastUsedModel();
         
         // Check again
         const updatedResources = await this.systemMonitor.getCurrentResources();
-        if (config.memoryRequirement > updatedResources.memory.available) {
+        if (config.memoryRequirement > (updatedResources.ram?.available || 0)) {
           throw new Error(`Insufficient memory to load ${modelName}`);
         }
       }
@@ -502,7 +507,8 @@ export class OllamaManager extends EventEmitter {
   /**
    * Generate AI analysis using the appropriate model
    */
-  public async generateAnalysis(request: AIAnalysisRequest): Promise<AIAnalysisResponse> {
+  public async generateAnalysis(input: AIAnalysisInput | AIAnalysisRequest): Promise<AIAnalysisResponse> {
+    const request = input as AIAnalysisInput;
     try {
       // Add to queue if high load
       if (this.shouldQueueRequest()) {
@@ -909,13 +915,13 @@ export class OllamaManager extends EventEmitter {
             
             if (metrics && config) {
               metrics.memoryUsage = config.memoryRequirement;
-              metrics.cpuUsage = systemResources.cpu.usage;
+              metrics.cpuUsage = systemResources.cpu?.utilization || 0;
             }
           }
         }
         
         // Check if we need to optimize for resource pressure
-        if (systemResources.memory.available < 2048) { // Less than 2GB available
+        if ((systemResources.ram?.available || 0) < 2048) { // Less than 2GB available
           await this.optimizeForMemoryPressure();
         }
         
@@ -944,7 +950,7 @@ export class OllamaManager extends EventEmitter {
     // Unload oldest models until we have enough memory
     for (const metrics of loadedModelMetrics) {
       const systemResources = await this.systemMonitor.getCurrentResources();
-      if (systemResources.memory.available > 3072) { // Keep 3GB buffer
+      if ((systemResources.ram?.available || 0) > 3072) { // Keep 3GB buffer
         break;
       }
       

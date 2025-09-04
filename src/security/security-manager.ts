@@ -19,7 +19,7 @@
  */
 
 import { encryptionService } from '@/security/encryption-service';
-import { keyManager } from '@/security/key-manager';
+import { keyManager, KeyType } from '@/security/key-manager';
 import { credentialManager } from '@/security/credential-manager';
 import { auditService } from '@/security/audit-service';
 import { logger } from '@/core/logging/logger';
@@ -142,9 +142,9 @@ export class SecurityManager {
         logger.warn('⚠️ No encryption keys found, generating initial keys...');
         
         // Generate initial encryption keys
-        await keyManager.generateKey('api_encryption', 'API credential encryption');
-        await keyManager.generateKey('session', 'Session encryption');
-        await keyManager.generateKey('database', 'Database encryption');
+        await keyManager.generateKey(KeyType.API_ENCRYPTION, 'API credential encryption');
+        await keyManager.generateKey(KeyType.SESSION, 'Session encryption');
+        await keyManager.generateKey(KeyType.DATABASE, 'Database encryption');
       }
       
       logger.info('✅ Encryption systems initialized successfully');

@@ -31,7 +31,7 @@ import { logger } from '@/core/logging/logger';
 import { SecurityManager } from '@/security/security-manager';
 import { SystemMonitor } from '@/infrastructure/system-monitor';
 import { TradingEngine } from '@/trading/trading-engine';
-import { TunnelManager } from '@/infrastructure/tunnel/tunnel-manager';
+import { SSHTunnelManager } from '@/infrastructure/ssh-tunnel-manager';
 import { validateEnvironment } from '@/config/environment-validator';
 import { gracefulShutdown } from '@/core/shutdown/graceful-shutdown';
 import { 
@@ -124,7 +124,7 @@ class AITradingAgent {
 
     registerSingleton(
       DependencyTokens.TUNNEL_MANAGER,
-      () => new TunnelManager(),
+      () => new SSHTunnelManager(),
       [DependencyTokens.SECURITY_MANAGER],
       ['core', 'infrastructure'],
       3
@@ -132,7 +132,20 @@ class AITradingAgent {
 
     registerSingleton(
       DependencyTokens.TRADING_ENGINE,
-      () => new TradingEngine(),
+      () => new TradingEngine({
+        exchange: process.env.EXCHANGE || 'gateio',
+        apiKey: process.env.GATE_IO_API_KEY || '',
+        apiSecret: process.env.GATE_IO_API_SECRET || '',
+        testnet: process.env.NODE_ENV !== 'production',
+        baseUrl: process.env.GATE_IO_BASE_URL,
+        defaultStrategy: 'harmonized',
+        riskSettings: {
+          maxPositionSize: parseFloat(process.env.MAX_POSITION_SIZE || '0.1'),
+          maxDailyLoss: parseFloat(process.env.MAX_DAILY_LOSS || '0.05'),
+          stopLossPercent: parseFloat(process.env.STOP_LOSS_PERCENT || '0.02'),
+          takeProfitPercent: parseFloat(process.env.TAKE_PROFIT_PERCENT || '0.04')
+        }
+      }),
       [DependencyTokens.SECURITY_MANAGER, DependencyTokens.TUNNEL_MANAGER],
       ['core', 'trading'],
       4
@@ -209,24 +222,24 @@ class AITradingAgent {
       
       async initialize(): Promise<void> {
         const instance = await dependencyManager.resolve(dependencyToken);
-        if (instance && typeof instance.initialize === 'function') {
-          await instance.initialize();
+        if (instance && typeof (instance as any).initialize === 'function') {
+          await (instance as any).initialize();
         }
         this.status = 'RUNNING';
       },
 
       async shutdown(): Promise<void> {
         const instance = await dependencyManager.resolve(dependencyToken);
-        if (instance && typeof instance.shutdown === 'function') {
-          await instance.shutdown();
+        if (instance && typeof (instance as any).shutdown === 'function') {
+          await (instance as any).shutdown();
         }
         this.status = 'STOPPED';
       },
 
       async healthCheck(): Promise<any> {
         const instance = await dependencyManager.resolve(dependencyToken);
-        if (instance && typeof instance.healthCheck === 'function') {
-          return await instance.healthCheck();
+        if (instance && typeof (instance as any).healthCheck === 'function') {
+          return await (instance as any).healthCheck();
         }
         return {
           healthy: true,
@@ -280,7 +293,7 @@ class AITradingAgent {
     });
     
     process.on('unhandledRejection', (reason, promise) => {
-      logger.error('❌ Unhandled rejection at:', promise, 'reason:', reason);
+      logger.error('❌ Unhandled rejection at:', { promise, reason });
       this.handleShutdown('UNHANDLED_REJECTION');
     });
   }
@@ -293,7 +306,7 @@ class AITradingAgent {
    */
   private async handleShutdown(signal: string): Promise<void> {
     if (this.isShuttingDown) {
-      logger.warn('⚠️ Shutdown already in progress, ignoring signal:', signal);
+      logger.warn('⚠️ Shutdown already in progress, ignoring signal:', { signal });
       return;
     }
     

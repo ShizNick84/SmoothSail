@@ -443,7 +443,12 @@ export class RateLimitingSystem extends EventEmitter {
         throw new Error(`Rate limiter not found for type: ${type}`);
       }
 
-      await limiter.consume(type, points);
+      if ('consume' in limiter) {
+        await limiter.consume(type, points);
+      } else {
+        // Handle queue-based limiter differently
+        await (limiter as any).removeTokens(points);
+      }
 
     } catch (rateLimiterRes) {
       // Rate limit exceeded
@@ -477,8 +482,8 @@ export class RateLimitingSystem extends EventEmitter {
     try {
       const metrics = await this.systemMonitor.getSystemMetrics();
       return {
-        cpu: metrics.cpu.usage,
-        memory: metrics.memory.usagePercent,
+        cpu: metrics.cpu?.utilization || 0,
+        memory: metrics.ram?.utilization || 0,
         networkLatency: await this.measureNetworkLatency()
       };
     } catch (error) {
@@ -513,7 +518,7 @@ export class RateLimitingSystem extends EventEmitter {
         type,
         remainingPoints: res?.remainingPoints || 0,
         msBeforeNext: res?.msBeforeNext || 0,
-        totalHits: res?.totalHits || 0,
+        totalHits: (res as any)?.totalHits || 0,
         isBlocked: (res?.remainingPoints || 0) <= 0,
         adaptedConfig: this.adaptiveConfigs.get(type)?.baseConfig
       };
@@ -585,4 +590,4 @@ export class RateLimitingSystem extends EventEmitter {
   }
 }
 
-export { RateLimitingSystem, RateLimiterType, RateLimitConfig, AdaptiveRateLimitConfig, RateLimitStatus, RateLimitViolation };
+// Exports are handled by individual export statements above

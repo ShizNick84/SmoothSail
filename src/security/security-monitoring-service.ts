@@ -724,7 +724,7 @@ export class SecurityMonitoringService extends EventEmitter {
    * 
    * @param event - Processed security event
    */
-  private updateSecurityMetrics(event: SecurityEvent): void {
+  public updateSecurityMetrics(event: SecurityEvent): void {
     this.securityMetrics.totalEvents++;
     
     // Update events by severity

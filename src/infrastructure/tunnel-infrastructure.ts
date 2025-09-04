@@ -76,7 +76,7 @@ export class TunnelInfrastructure extends EventEmitter {
    */
   private initializeComponents(): void {
     // Core tunnel manager
-    this.tunnelManager = new SSHTunnelManager(this.logger, this.encryptionService);
+    this.tunnelManager = new SSHTunnelManager();
 
     // State tracking
     this.stateTracker = new TunnelStateTracker(this.logger);
@@ -302,11 +302,26 @@ export class TunnelInfrastructure extends EventEmitter {
 
     const connectionPromises = this.config.tunnelConfigs.map(async (tunnelConfig, index) => {
       try {
+        // Ensure tunnel config has all required properties
+        const fullTunnelConfig: TunnelConfig = {
+          name: tunnelConfig.name || `tunnel-${index}`,
+          remoteHost: tunnelConfig.remoteHost || 'localhost',
+          remotePort: tunnelConfig.remotePort || 8443,
+          localPort: tunnelConfig.localPort || 8443,
+          sshHost: tunnelConfig.sshHost || process.env.ORACLE_IP || '',
+          sshPort: tunnelConfig.sshPort || 22,
+          sshUsername: tunnelConfig.sshUsername || process.env.ORACLE_USERNAME || 'ubuntu',
+          privateKeyPath: tunnelConfig.privateKeyPath || process.env.SSH_PRIVATE_KEY_PATH,
+          privateKey: tunnelConfig.privateKey,
+          keepAlive: tunnelConfig.keepAlive !== false,
+          compression: tunnelConfig.compression !== false,
+          maxRetries: tunnelConfig.maxRetries || 3,
+          retryDelay: tunnelConfig.retryDelay || 5000,
+          healthCheckInterval: tunnelConfig.healthCheckInterval || 30000
+        };
+
         // Create tunnel connection
-        const connection = await this.tunnelManager.createTunnel(tunnelConfig);
-        
-        // Establish connection
-        await this.tunnelManager.establishTunnel(connection.id);
+        const connection = await this.tunnelManager.establishTunnel(fullTunnelConfig);
         
         // Add to failover management as primary tunnel
         this.failoverManager.addPrimaryTunnel(connection.id);
@@ -453,17 +468,19 @@ export function createOracleTunnelInfrastructure(
   const defaultConfig: TunnelInfrastructureConfig = {
     tunnelConfigs: [
       {
-        oracleIP: '168.138.104.117',
+        name: 'oracle-tunnel',
+        sshHost: '168.138.104.117',
         sshPort: 22,
-        username: process.env.ORACLE_SSH_USERNAME || 'ubuntu',
+        sshUsername: process.env.ORACLE_SSH_USERNAME || 'ubuntu',
         privateKeyPath: process.env.ORACLE_SSH_KEY_PATH || '~/.ssh/oracle_key',
         localPort: 8080,
-        remotePort: 3000,
+        remoteHost: 'api.gateio.ws',
+        remotePort: 443,
         keepAlive: true,
         compression: true,
-        connectionTimeout: 30,
-        serverAliveInterval: 60,
-        serverAliveCountMax: 3
+        maxRetries: 3,
+        retryDelay: 5000,
+        healthCheckInterval: 30000
       }
     ],
     healthMonitor: {

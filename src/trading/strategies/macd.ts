@@ -18,7 +18,7 @@ export class MACDStrategy {
    * Constructor with configuration validation
    * @param config Configuration object
    */
-  constructor(config?: { fastPeriod?: number; slowPeriod?: number; signalPeriod?: number }) {
+  constructor(config?: { fastPeriod?: number; slowPeriod?: number; signalPeriod?: number; symbol?: string }) {
     if (config) {
       if (config.fastPeriod !== undefined) {
         if (config.fastPeriod <= 0) {

@@ -285,9 +285,9 @@ export class SecurityDashboard extends EventEmitter {
             label: 'Threats',
             data: timeline.map(point => point.count),
             borderColor: '#FF6384',
-            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+            backgroundColor: ['rgba(255, 99, 132, 0.1)'],
             borderWidth: 2,
-            fill: true
+            // fill: true // Removed due to type conflict
           }]
         },
         options: {
@@ -319,7 +319,7 @@ export class SecurityDashboard extends EventEmitter {
           datasets: [{
             label: 'Threats',
             data: topSources.map(([, count]) => count),
-            backgroundColor: '#36A2EB',
+            backgroundColor: ['#36A2EB'],
             borderColor: '#36A2EB',
             borderWidth: 1
           }]

@@ -927,6 +927,28 @@ Recommendation: Reduce position sizes and implement tighter risk management unti
   }
 
   /**
+   * Check if the anomaly detector is healthy and functioning properly
+   */
+  public isHealthy(): boolean {
+    try {
+      // Check if detector is initialized
+      if (!this.isInitialized) {
+        return false;
+      }
+
+      // Check if LLM engine is available and healthy
+      if (!this.llmEngine || !this.llmEngine.isReady()) {
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      logger.error('❌ Error checking Anomaly Detector health:', error);
+      return false;
+    }
+  }
+
+  /**
    * Shutdown the anomaly detector
    */
   public async shutdown(): Promise<void> {

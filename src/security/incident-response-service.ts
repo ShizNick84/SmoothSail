@@ -71,8 +71,10 @@ export interface IncidentResponseConfig {
 export interface SecurityIncident {
   /** Unique incident identifier */
   incidentId: string;
+  /** Incident type */
+  type: string;
   /** Incident title */
-  title: string;
+  title?: string;
   /** Incident description */
   description: string;
   /** Incident severity */
@@ -80,23 +82,35 @@ export interface SecurityIncident {
   /** Incident status */
   status: IncidentStatus;
   /** Incident category */
-  category: IncidentCategory;
+  category?: IncidentCategory;
+  /** Incident priority */
+  priority: IncidentPriority;
+  /** Detection timestamp */
+  detectedAt: Date;
+  /** Source of incident */
+  source: string;
+  /** Affected systems */
+  affectedSystems: string[];
+  /** Evidence data */
+  evidence: any;
+  /** Tags */
+  tags: string[];
   /** Source security event */
-  sourceEvent: SecurityEvent;
+  sourceEvent?: SecurityEvent;
   /** Related events */
-  relatedEvents: SecurityEvent[];
+  relatedEvents?: SecurityEvent[];
   /** Incident timeline */
-  timeline: IncidentTimelineEntry[];
+  timeline?: IncidentTimelineEntry[];
   /** Evidence collected */
-  evidence: IncidentEvidence[];
+  evidenceList?: IncidentEvidence[];
   /** Response actions taken */
   responseActions: IncidentResponseAction[];
   /** Assigned responder */
   assignedTo?: string;
   /** Creation timestamp */
-  createdAt: Date;
+  createdAt?: Date;
   /** Last updated timestamp */
-  updatedAt: Date;
+  updatedAt?: Date;
   /** Resolution timestamp */
   resolvedAt?: Date;
   /** Resolution summary */
@@ -107,6 +121,16 @@ export interface SecurityIncident {
  * Enumeration of incident severity levels
  */
 export enum IncidentSeverity {
+  CRITICAL = 'critical',
+  HIGH = 'high',
+  MEDIUM = 'medium',
+  LOW = 'low'
+}
+
+/**
+ * Enumeration of incident priority levels
+ */
+export enum IncidentPriority {
   CRITICAL = 'critical',
   HIGH = 'high',
   MEDIUM = 'medium',
@@ -190,13 +214,15 @@ export interface IncidentResponseAction {
   /** Action ID */
   actionId: string;
   /** Action type */
-  type: ResponseActionType;
+  actionType: ResponseActionType;
   /** Action description */
   description: string;
   /** Action status */
   status: 'pending' | 'executing' | 'completed' | 'failed';
   /** Execution timestamp */
   executedAt?: Date;
+  /** Executed by */
+  executedBy?: string;
   /** Completion timestamp */
   completedAt?: Date;
   /** Action result */
@@ -204,6 +230,11 @@ export interface IncidentResponseAction {
   /** Action metadata */
   metadata: Record<string, any>;
 }
+
+/**
+ * Type alias for response action
+ */
+export type ResponseAction = IncidentResponseAction;
 
 /**
  * Enumeration of response action types
@@ -218,7 +249,8 @@ export enum ResponseActionType {
   ESCALATE_INCIDENT = 'escalate_incident',
   RESTORE_FROM_BACKUP = 'restore_from_backup',
   PATCH_VULNERABILITY = 'patch_vulnerability',
-  UPDATE_SECURITY_RULES = 'update_security_rules'
+  UPDATE_SECURITY_RULES = 'update_security_rules',
+  LOG_INCIDENT = 'log_incident'
 }
 
 /**
@@ -406,13 +438,23 @@ export class IncidentResponseService extends EventEmitter {
       
       const incident: SecurityIncident = {
         incidentId,
+        type: event.eventType,
         title: this.generateIncidentTitle(event),
         description: this.generateIncidentDescription(event),
         severity,
         status: IncidentStatus.NEW,
         category,
+        priority: this.mapSeverityToPriority(severity),
+        detectedAt: new Date(),
+        source: event.source || 'SYSTEM',
+        affectedSystems: [event.source || 'UNKNOWN'],
+        evidence: event.details || {},
+        tags: [event.eventType, severity],
         sourceEvent: event,
         relatedEvents: [],
+        responseActions: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
         timeline: [{
           entryId: `timeline_${Date.now()}`,
           timestamp: new Date(),
@@ -421,10 +463,7 @@ export class IncidentResponseService extends EventEmitter {
           details: `Incident created from security event ${event.eventId}`,
           type: 'detection'
         }],
-        evidence: [],
-        responseActions: [],
-        createdAt: new Date(),
-        updatedAt: new Date()
+        evidenceList: []
       };
       
       // Store incident
@@ -546,6 +585,56 @@ export class IncidentResponseService extends EventEmitter {
   }
 
   /**
+   * Create new security incident
+   * Creates and tracks a new security incident
+   * 
+   * @param incidentData - Incident creation data
+   * @returns Promise<SecurityIncident> Created incident
+   */
+  public async createIncident(incidentData: {
+    type: string;
+    severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    description: string;
+    source?: string;
+    affectedSystems?: string[];
+    evidence?: any;
+  }): Promise<SecurityIncident> {
+    const incidentId = this.generateIncidentId();
+    
+    const incident: SecurityIncident = {
+      incidentId,
+      type: incidentData.type,
+      severity: this.mapSeverityToEnum(incidentData.severity),
+      status: IncidentStatus.NEW,
+      description: incidentData.description,
+      detectedAt: new Date(),
+      source: incidentData.source || 'SYSTEM',
+      affectedSystems: incidentData.affectedSystems || [],
+      evidence: incidentData.evidence || {},
+      responseActions: [],
+      assignedTo: 'AUTO_RESPONSE',
+      priority: this.calculatePriority(incidentData.severity),
+      tags: []
+    };
+    
+    // Store incident
+    this.activeIncidents.set(incidentId, incident);
+    
+    // Log incident creation
+    logger.error('🚨 Security incident created', {
+      incidentId,
+      type: incidentData.type,
+      severity: incidentData.severity,
+      classification: 'RESTRICTED'
+    });
+    
+    // Trigger automated response
+    await this.triggerAutomatedResponse(incident);
+    
+    return incident;
+  }
+
+  /**
    * Get incident by ID
    * Returns specific incident by ID
    * 
@@ -656,6 +745,21 @@ export class IncidentResponseService extends EventEmitter {
     return IncidentSeverity.LOW;
   }
 
+  private mapSeverityToPriority(severity: IncidentSeverity): IncidentPriority {
+    switch (severity) {
+      case IncidentSeverity.CRITICAL:
+        return IncidentPriority.CRITICAL;
+      case IncidentSeverity.HIGH:
+        return IncidentPriority.HIGH;
+      case IncidentSeverity.MEDIUM:
+        return IncidentPriority.MEDIUM;
+      case IncidentSeverity.LOW:
+        return IncidentPriority.LOW;
+      default:
+        return IncidentPriority.LOW;
+    }
+  }
+
   private mapEventTypeToIncidentCategory(eventType: SecurityEventType): IncidentCategory {
     const categoryMap: Record<SecurityEventType, IncidentCategory> = {
       [SecurityEventType.THREAT_DETECTED]: IncidentCategory.SECURITY_BREACH,
@@ -752,7 +856,7 @@ export class IncidentResponseService extends EventEmitter {
     for (const step of playbook.steps) {
       const action: IncidentResponseAction = {
         actionId: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: step.actionType,
+        actionType: step.actionType,
         description: step.description,
         status: 'completed',
         metadata: step.parameters
@@ -778,7 +882,7 @@ export class IncidentResponseService extends EventEmitter {
     // Default evidence collection and notification
     const evidenceAction: IncidentResponseAction = {
       actionId: `default_evidence_${Date.now()}`,
-      type: ResponseActionType.COLLECT_EVIDENCE,
+      actionType: ResponseActionType.COLLECT_EVIDENCE,
       description: 'Default response: Evidence collection',
       status: 'completed',
       metadata: { types: ['log_file', 'system_snapshot'] }
@@ -786,7 +890,7 @@ export class IncidentResponseService extends EventEmitter {
     
     const notifyAction: IncidentResponseAction = {
       actionId: `default_notify_${Date.now()}`,
-      type: ResponseActionType.NOTIFY_STAKEHOLDERS,
+      actionType: ResponseActionType.NOTIFY_STAKEHOLDERS,
       description: 'Default response: Stakeholder notification',
       status: 'completed',
       metadata: { channels: ['email'] }
@@ -908,6 +1012,75 @@ export class IncidentResponseService extends EventEmitter {
       timestamp: Date.now()
     };
   }
+
+
+
+  /**
+   * Map severity string to enum
+   * Converts string severity to enum value
+   * 
+   * @param severity - Severity string
+   * @returns IncidentSeverity Severity enum value
+   */
+  private mapSeverityToEnum(severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'): IncidentSeverity {
+    switch (severity) {
+      case 'CRITICAL':
+        return IncidentSeverity.CRITICAL;
+      case 'HIGH':
+        return IncidentSeverity.HIGH;
+      case 'MEDIUM':
+        return IncidentSeverity.MEDIUM;
+      default:
+        return IncidentSeverity.LOW;
+    }
+  }
+
+  /**
+   * Calculate incident priority
+   * Determines priority based on severity
+   * 
+   * @param severity - Incident severity
+   * @returns IncidentPriority Priority level
+   */
+  private calculatePriority(severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'): IncidentPriority {
+    switch (severity) {
+      case 'CRITICAL':
+        return IncidentPriority.CRITICAL;
+      case 'HIGH':
+        return IncidentPriority.HIGH;
+      case 'MEDIUM':
+        return IncidentPriority.MEDIUM;
+      default:
+        return IncidentPriority.LOW;
+    }
+  }
+
+  /**
+   * Trigger automated response for incident
+   * Initiates automated response procedures
+   * 
+   * @param incident - Security incident
+   * @returns Promise<void>
+   */
+  private async triggerAutomatedResponse(incident: SecurityIncident): Promise<void> {
+    try {
+      // Find applicable playbooks
+      const playbooks = this.findApplicablePlaybooks(incident);
+      
+      if (playbooks.length > 0) {
+        // Execute the most appropriate playbook
+        await this.executePlaybook(incident, playbooks[0]);
+      } else {
+        // Default response actions
+        await this.executeDefaultResponse(incident);
+      }
+      
+    } catch (error) {
+      logger.error('❌ Failed to trigger automated response:', error);
+    }
+  }
+
+
 }
 
 // Create and export singleton instance

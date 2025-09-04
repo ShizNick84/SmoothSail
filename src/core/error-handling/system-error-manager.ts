@@ -123,7 +123,7 @@ export class SystemErrorManager extends EventEmitter {
   constructor() {
     super();
     this.logger = new Logger('SystemErrorManager');
-    this.notificationService = new NotificationService();
+    this.notificationService = new NotificationService(this.logger);
     
     // Initialize error handlers
     this.tradingErrorHandler = new TradingErrorHandler();
@@ -352,7 +352,8 @@ export class SystemErrorManager extends EventEmitter {
       await this.notificationService.sendAlert({
         title: 'Error Pattern Detected',
         message: `Pattern "${pattern.pattern}" occurred ${pattern.frequency} times in the last hour`,
-        details: { pattern, recentErrors: similarErrors.slice(-3) }
+        details: { pattern, recentErrors: similarErrors.slice(-3) },
+        priority: 'MEDIUM'
       });
 
       // Enable auto-resolution if pattern is frequent
@@ -524,7 +525,9 @@ export class SystemErrorManager extends EventEmitter {
         await this.notificationService.sendAlert({
           title: 'Error Pattern Alert',
           message: `Frequent ${error.severity} errors detected`,
-          details: { component: error.component, count: relatedErrors.length }
+          priority: 'HIGH',
+          timestamp: new Date(),
+          metadata: { component: error.component, count: relatedErrors.length }
         });
     }
 

@@ -490,4 +490,4 @@ export class AIRateLimiter extends EventEmitter {
   }
 }
 
-export { AIModelType, AIRequestConfig, AIModelMetrics };
+// Exports are handled by individual export statements above

@@ -470,7 +470,7 @@ export class LLMFallbackManager extends EventEmitter {
         logger.info(`✅ Fallback strategy ${strategy.name} executed successfully`);
         this.emit('fallbackSuccess', fallbackResult);
       } else {
-        logger.error(`❌ Fallback strategy ${strategy.name} failed:`, result.error);
+        logger.error(`❌ Fallback strategy ${strategy.name} failed:`, { error: result.error });
         this.emit('fallbackFailure', fallbackResult);
       }
 

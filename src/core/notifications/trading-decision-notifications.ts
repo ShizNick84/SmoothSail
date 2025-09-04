@@ -544,7 +544,7 @@ ${data.alternativeActions.map(alt => `• <b>${alt.action}</b> (${(alt.probabili
         timestamp: data.timestamp.toISOString(),
         theme: 'light',
         symbol: data.symbol,
-        action: data.action,
+        action: data.action === 'HOLD' ? undefined : data.action as 'BUY' | 'SELL',
         quantity: data.quantity,
         price: data.price,
         balance: data.currentBalance,

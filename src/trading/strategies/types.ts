@@ -74,12 +74,17 @@ export interface RSISignal {
   name: string;
   value: number;
   timestamp: Date;
+  period: number;
   parameters: {
-    period: number;
-    overboughtLevel: number;
-    oversoldLevel: number;
+    overboughtThreshold: number;
+    oversoldThreshold: number;
   };
-  condition: 'OVERBOUGHT' | 'OVERSOLD' | 'NEUTRAL';
+  overbought: boolean;
+  oversold: boolean;
+  divergence?: {
+    type: 'BULLISH' | 'BEARISH' | 'NONE';
+    strength: number;
+  };
 }
 
 export interface StrategyConfig {
@@ -87,12 +92,61 @@ export interface StrategyConfig {
   slowPeriod?: number;
   signalPeriod?: number;
   period?: number;
+  overbought?: number;
   overboughtLevel?: number;
+  oversold?: number;
   oversoldLevel?: number;
+  symbol?: string;
+  enabled?: boolean;
+  weight?: number;
 }
 
 export interface StrategyResult {
   signal: TradingSignal | null;
   confidence: SignalConfidence;
   indicators: Record<string, any>;
+}
+export interface HarmonizedSignal extends TradingSignal {
+  strategies: {
+    movingAverage?: TradingSignal;
+    rsi?: RSISignal;
+    macd?: MACDSignal;
+    fibonacci?: TradingSignal;
+    breakout?: TradingSignal;
+  };
+  consensus: {
+    strength: number;
+    agreement: number;
+    conflicting: boolean;
+  };
+  weights: {
+    movingAverage: number;
+    rsi: number;
+    macd: number;
+    fibonacci: number;
+    breakout: number;
+  };
+}
+
+export interface BreakoutSignal extends TradingSignal {
+  breakoutLevel: number;
+  volume: number;
+  resistance?: number;
+  support?: number;
+  parameters: {
+    lookbackPeriod: number;
+    volumeThreshold: number;
+    priceThreshold: number;
+  };
+}
+
+export interface FibonacciLevels {
+  levels: {
+    [key: string]: number;
+  };
+  trend: 'UPTREND' | 'DOWNTREND';
+  pivot: {
+    high: number;
+    low: number;
+  };
 }

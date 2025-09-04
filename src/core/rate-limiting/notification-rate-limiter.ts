@@ -203,10 +203,13 @@ export class NotificationRateLimiter extends EventEmitter {
 
     const notificationItem: NotificationQueueItem = {
       id: this.generateNotificationId(),
-      config: { ...config, sendFunction } as any,
+      config: { ...config },
       timestamp: new Date(),
       retryCount: 0
     };
+
+    // Store the send function separately to avoid type conflicts
+    (notificationItem as any).sendFunction = sendFunction;
 
     // Add to appropriate queue based on priority and batching
     if (config.batchable && this.batchingEnabled && config.priority !== NotificationPriority.EMERGENCY) {
@@ -356,7 +359,7 @@ export class NotificationRateLimiter extends EventEmitter {
       await this.rateLimitingSystem.consume(rateLimiterType, 1, true);
 
       // Execute the notification
-      const sendFunction = (config as any).sendFunction;
+      const sendFunction = (item as any).sendFunction;
       if (sendFunction) {
         await sendFunction(config);
       }
@@ -450,6 +453,9 @@ export class NotificationRateLimiter extends EventEmitter {
       retryCount: 0
     };
 
+    // Store the send function from the first notification
+    (combinedNotification as any).sendFunction = (batch.notifications[0] as any).sendFunction;
+
     // Add to priority queue
     this.addToQueue(combinedNotification);
 
@@ -469,15 +475,16 @@ export class NotificationRateLimiter extends EventEmitter {
     const messages = batch.notifications.map(n => n.config.message);
     const highestPriority = Math.max(...batch.notifications.map(n => this.getPriorityValue(n.config.priority)));
     
-    return {
+    const batchedConfig: NotificationConfig = {
       type: batch.type,
       priority: this.getPriorityFromValue(highestPriority),
       recipient: batch.recipient,
       subject: `Trading Agent - ${batch.notifications.length} Updates`,
       message: this.formatBatchedMessage(messages),
-      batchable: false, // Prevent re-batching
-      sendFunction: batch.notifications[0].config.sendFunction
-    } as any;
+      batchable: false // Prevent re-batching
+    };
+
+    return batchedConfig;
   }
 
   /**
@@ -630,4 +637,4 @@ export class NotificationRateLimiter extends EventEmitter {
   }
 }
 
-export { NotificationType, NotificationPriority, NotificationConfig, NotificationStats };
+// Exports are handled by individual export statements above

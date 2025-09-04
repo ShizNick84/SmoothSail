@@ -8,7 +8,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 import { monitoringAutomation } from './monitoring-automation';
 import { backupRecovery } from './backup-recovery';
 import { databaseSetup } from './database-setup';

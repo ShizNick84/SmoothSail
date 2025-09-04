@@ -293,11 +293,11 @@ export class RateLimitingIntegration extends EventEmitter {
     // Calculate delay based on system load
     let delayMultiplier = 1;
     
-    if (systemMetrics.cpu.usage > this.systemLoadThresholds.cpu.high) {
+    if ((systemMetrics.cpu?.utilization || 0) > this.systemLoadThresholds.cpu.high) {
       delayMultiplier *= 2;
     }
     
-    if (systemMetrics.memory.usagePercent > this.systemLoadThresholds.memory.high) {
+    if ((systemMetrics.ram?.utilization || 0) > this.systemLoadThresholds.memory.high) {
       delayMultiplier *= 1.5;
     }
 
@@ -505,8 +505,8 @@ export class RateLimitingIntegration extends EventEmitter {
     const stats: RateLimitingIntegrationStats = {
       timestamp: new Date(),
       systemLoad: {
-        cpu: systemMetrics.cpu.usage,
-        memory: systemMetrics.memory.usagePercent,
+        cpu: systemMetrics.cpu?.utilization || 0,
+        memory: systemMetrics.ram?.utilization || 0,
         networkLatency: await this.measureNetworkLatency()
       },
       rateLimiters: {
@@ -683,8 +683,4 @@ export class RateLimitingIntegration extends EventEmitter {
   }
 }
 
-export { 
-  SSHTunnelRateLimitConfig, 
-  SystemLoadThresholds, 
-  RateLimitingIntegrationStats 
-};
+// Exports are handled by individual export statements above

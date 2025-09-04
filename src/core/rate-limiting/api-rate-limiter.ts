@@ -287,4 +287,4 @@ export class DatabaseRateLimiter extends APIRateLimiter {
   }
 }
 
-export { APIRateLimitConfig };
+// Exports are handled by individual export statements above

@@ -568,6 +568,7 @@ export class ErrorMonitoringDashboard extends EventEmitter {
         await this.notificationService.sendAlert({
           title: `Alert: ${rule.name}`,
           message: `Alert condition met: ${rule.condition}`,
+          priority: 'HIGH',
           details: { rule, metrics: this.metrics }
         });
         break;

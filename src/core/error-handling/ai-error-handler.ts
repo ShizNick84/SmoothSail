@@ -354,7 +354,8 @@ export class AIErrorHandler extends EventEmitter {
       await this.notificationService.sendAlert({
         title: 'AI Model Unavailable',
         message: `Model ${model.name} marked as unavailable after ${model.errorCount} failures`,
-        details: { errorType, lastError: error.message }
+        details: { errorType, lastError: error.message },
+        priority: 'HIGH'
       });
     }
 

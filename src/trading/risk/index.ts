@@ -133,11 +133,11 @@ export class IntegratedRiskManager {
     capitalProtectionConfig = DEFAULT_CAPITAL_PROTECTION_CONFIG,
     portfolioRiskConfig = DEFAULT_PORTFOLIO_RISK_CONFIG
   ) {
-    this.positionSizingEngine = new PositionSizingEngine(riskParameters);
-    this.trailingStopManager = new TrailingStopManager();
-    this.riskRewardEnforcer = new RiskRewardEnforcer(rrEnforcementConfig);
-    this.capitalPreservationSystem = new CapitalPreservationSystem(capitalProtectionConfig);
-    this.portfolioRiskManager = new PortfolioRiskManager(portfolioRiskConfig);
+    // this.positionSizingEngine = new PositionSizingEngine(riskParameters);
+    // this.trailingStopManager = new TrailingStopManager();
+    // this.riskRewardEnforcer = new RiskRewardEnforcer(rrEnforcementConfig);
+    // this.capitalPreservationSystem = new CapitalPreservationSystem(capitalProtectionConfig);
+    // this.portfolioRiskManager = new PortfolioRiskManager(portfolioRiskConfig);
   }
 
   /**

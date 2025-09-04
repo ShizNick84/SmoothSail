@@ -336,7 +336,7 @@ export class AutomatedSecurityTestingSuite {
           executionId: execution.executionId,
           criticalCount: report.criticalCount,
           complianceScore: report.complianceScore,
-          incidentId: incident.id
+          incidentId: incident.incidentId
         },
         priority: 'CRITICAL'
       });
@@ -577,13 +577,21 @@ export class AutomatedSecurityTestingSuite {
   private async updateSecurityMetrics(report: VulnerabilityReport): Promise<void> {
     try {
       await this.securityMonitoring.updateSecurityMetrics({
+        eventId: `security_metrics_${Date.now()}`,
+        eventType: 'VULNERABILITY_SCAN' as any,
+        severity: Math.min(report.totalVulnerabilities || 0, 10),
+        source: 'AUTOMATED_SECURITY_TESTING',
+        target: 'SYSTEM',
         timestamp: new Date(),
-        totalVulnerabilities: report.totalVulnerabilities,
-        criticalCount: report.criticalCount,
-        highCount: report.highCount,
-        mediumCount: report.mediumCount,
-        lowCount: report.lowCount,
-        complianceScore: report.complianceScore
+        details: {
+          totalVulnerabilities: report.totalVulnerabilities,
+          criticalCount: report.criticalCount,
+          highCount: report.highCount,
+          mediumCount: report.mediumCount,
+          lowCount: report.lowCount,
+        },
+        status: 'ACTIVE' as any,
+        responseActions: []
       });
     } catch (error) {
       this.logger.error(`Failed to update security metrics`, { error });

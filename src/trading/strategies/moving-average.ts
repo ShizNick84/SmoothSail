@@ -365,8 +365,11 @@ export class MovingAverageStrategy {
    * @param signalType Signal direction
    * @returns Momentum score (0-100)
    */
-  private calculateMomentumScore(prices: number[], signalType: 'BUY' | 'SELL'): number {
+  private calculateMomentumScore(prices: number[], signalType: 'BUY' | 'SELL' | 'HOLD'): number {
     if (prices.length < 3) return 50;
+
+    // Handle HOLD signal type
+    if (signalType === 'HOLD') return 50;
 
     const priceChange = (prices[prices.length - 1] - prices[0]) / prices[0];
     const expectedDirection = signalType === 'BUY' ? 1 : -1;
@@ -423,7 +426,7 @@ export class MovingAverageStrategy {
    * Constructor with configuration validation
    * @param config Configuration object
    */
-  constructor(config?: { fastPeriod?: number; slowPeriod?: number }) {
+  constructor(config?: { fastPeriod?: number; slowPeriod?: number; symbol?: string }) {
     if (config) {
       if (config.fastPeriod !== undefined) {
         if (config.fastPeriod <= 0) {

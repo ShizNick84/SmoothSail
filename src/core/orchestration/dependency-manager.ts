@@ -133,7 +133,7 @@ export class DependencyManager {
    * @param context Resolution context
    * @returns Resolved dependency instance
    */
-  public async resolve<T>(token: DependencyToken, context?: ResolutionContext): T {
+  public async resolve<T>(token: DependencyToken, context?: ResolutionContext): Promise<T> {
     if (this.isShuttingDown) {
       throw new Error('Cannot resolve dependencies during shutdown');
     }

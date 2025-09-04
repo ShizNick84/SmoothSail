@@ -708,41 +708,41 @@ export class ComplianceTestingService {
     testMethod: string, 
     control: ComplianceControl
   ): Promise<{ findings: SecurityFinding[], evidence: string[], score: number }> {
-    const findings: SecurityFinding[] = [];
-    const evidence: string[] = [];
+    let findings: SecurityFinding[] = [];
+    let evidence: string[] = [];
     let score = 0;
 
     try {
       switch (testMethod) {
         case 'authorization_testing':
-          ({ findings: findings, evidence: evidence, score } = await this.testAuthorization());
+          ({ findings, evidence, score } = await this.testAuthorization());
           break;
         case 'encryption_testing':
-          ({ findings: findings, evidence: evidence, score } = await this.testEncryption());
+          ({ findings, evidence, score } = await this.testEncryption());
           break;
         case 'sql_injection_testing':
-          ({ findings: findings, evidence: evidence, score } = await this.testSQLInjection());
+          ({ findings, evidence, score } = await this.testSQLInjection());
           break;
         case 'configuration_review':
-          ({ findings: findings, evidence: evidence, score } = await this.reviewConfiguration());
+          ({ findings, evidence, score } = await this.reviewConfiguration());
           break;
         case 'dependency_scanning':
-          ({ findings: findings, evidence: evidence, score } = await this.scanDependencies());
+          ({ findings, evidence, score } = await this.scanDependencies());
           break;
         case 'logging_review':
-          ({ findings: findings, evidence: evidence, score } = await this.reviewLogging());
+          ({ findings, evidence, score } = await this.reviewLogging());
           break;
         case 'policy_review':
-          ({ findings: findings, evidence: evidence, score } = await this.reviewPolicies());
+          ({ findings, evidence, score } = await this.reviewPolicies());
           break;
         case 'risk_assessment_review':
-          ({ findings: findings, evidence: evidence, score } = await this.reviewRiskAssessment());
+          ({ findings, evidence, score } = await this.reviewRiskAssessment());
           break;
         case 'api_key_security_testing':
-          ({ findings: findings, evidence: evidence, score } = await this.testAPIKeySecurity());
+          ({ findings, evidence, score } = await this.testAPIKeySecurity());
           break;
         case 'algorithm_security_review':
-          ({ findings: findings, evidence: evidence, score } = await this.reviewAlgorithmSecurity());
+          ({ findings, evidence, score } = await this.reviewAlgorithmSecurity());
           break;
         default:
           this.logger.warn(`Unknown test method: ${testMethod}`);

@@ -249,8 +249,26 @@ export class TunnelFailoverManager extends EventEmitter {
   async createBackupTunnel(backupConfig: Partial<TunnelConfig>): Promise<TunnelConnection> {
     this.logger.info('Creating backup tunnel', { config: backupConfig });
 
+    // Ensure backup config has all required properties
+    const fullBackupConfig: TunnelConfig = {
+      name: backupConfig.name || `backup-tunnel-${Date.now()}`,
+      remoteHost: backupConfig.remoteHost || 'localhost',
+      remotePort: backupConfig.remotePort || 8443,
+      localPort: backupConfig.localPort || 8443,
+      sshHost: backupConfig.sshHost || process.env.ORACLE_IP || '',
+      sshPort: backupConfig.sshPort || 22,
+      sshUsername: backupConfig.sshUsername || process.env.ORACLE_USERNAME || 'ubuntu',
+      privateKeyPath: backupConfig.privateKeyPath || process.env.SSH_PRIVATE_KEY_PATH,
+      privateKey: backupConfig.privateKey,
+      keepAlive: backupConfig.keepAlive !== false,
+      compression: backupConfig.compression !== false,
+      maxRetries: backupConfig.maxRetries || 3,
+      retryDelay: backupConfig.retryDelay || 5000,
+      healthCheckInterval: backupConfig.healthCheckInterval || 30000
+    };
+
     // Create tunnel connection
-    const connection = await this.tunnelManager.createTunnel(backupConfig);
+    const connection = await this.tunnelManager.establishTunnel(fullBackupConfig);
 
     // Register as backup tunnel
     const backupStatus: BackupTunnelStatus = {
@@ -293,7 +311,10 @@ export class TunnelFailoverManager extends EventEmitter {
       this.logger.info(`Activating backup tunnel: ${connectionId}`);
 
       // Establish tunnel connection
-      await this.tunnelManager.establishTunnel(connectionId);
+      const connection = this.tunnelManager.getConnection(connectionId);
+      if (connection) {
+        await this.tunnelManager.establishTunnel(connection.config);
+      }
 
       // Update status
       backupStatus.isActive = true;
@@ -721,7 +742,7 @@ export class TunnelFailoverManager extends EventEmitter {
     if (failoverEvent.success) {
       this.failoverStats.successfulFailovers++;
     } else {
-      this.failedFailovers++;
+      this.failoverStats.failedFailovers++;
     }
 
     // Update timing statistics

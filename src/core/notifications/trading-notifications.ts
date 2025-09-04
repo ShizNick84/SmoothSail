@@ -173,6 +173,20 @@ export interface SystemHealthData {
 }
 
 /**
+ * Stop loss data structure
+ */
+export interface StopLossData {
+  positionId: string;
+  symbol: string;
+  entryPrice: number;
+  exitPrice: number;
+  quantity: number;
+  realizedPnL: number;
+  lossPercentage: number;
+  timestamp: Date;
+}
+
+/**
  * Trading notifications manager class
  */
 export class TradingNotifications {
@@ -331,7 +345,17 @@ ${lossEmoji} <b>STOP LOSS TRIGGERED</b> 🛑
 
       // Email notification for significant losses
       if (Math.abs(data.realizedPnL) > 200) {
-        await this.sendStopLossEmail(data);
+        const stopLossData: StopLossData = {
+          positionId: data.positionId,
+          symbol: data.symbol,
+          entryPrice: data.entryPrice,
+          exitPrice: data.currentPrice,
+          quantity: data.quantity,
+          realizedPnL: data.realizedPnL,
+          lossPercentage: ((data.currentPrice - data.entryPrice) / data.entryPrice) * 100,
+          timestamp: new Date()
+        };
+        await this.sendStopLossEmail(stopLossData);
       }
 
       logger.info(`✅ Stop loss notification sent: ${data.positionId}`);
@@ -671,6 +695,102 @@ ${data.totalPnL >= 0 ? '🚀 Great week! Keep up the momentum!' : '💪 Learning
   public async stop(): Promise<void> {
     await this.notificationRouter.stop();
     logger.info('🛑 Trading notifications stopped');
+  }
+
+  /**
+   * Send stop loss email notification
+   */
+  private async sendStopLossEmail(data: StopLossData): Promise<void> {
+    try {
+      const subject = `🚨 Stop Loss Triggered - ${data.symbol}`;
+      
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center;">
+            <h1 style="margin: 0;">🚨 Stop Loss Alert</h1>
+          </div>
+          
+          <div style="padding: 20px; background: #f8f9fa;">
+            <h2 style="color: #dc3545;">Stop Loss Triggered: ${data.symbol}</h2>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #dc3545;">Position Details</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Position ID:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">${data.positionId}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Symbol:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">${data.symbol}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Entry Price:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">${data.entryPrice.toFixed(4)}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Exit Price:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">${data.exitPrice.toFixed(4)}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Quantity:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">${data.quantity}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Realized P&L:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd; color: #dc3545;">${data.realizedPnL.toFixed(2)}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Loss Percentage:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd; color: #dc3545;">${data.lossPercentage.toFixed(2)}%</td></tr>
+              </table>
+            </div>
+
+            <p style="margin-top: 20px; color: #666; text-align: center;">
+              <em>Stop loss triggered at ${data.timestamp.toLocaleString()}</em>
+            </p>
+          </div>
+        </div>
+      `;
+
+      await this.emailService.send({
+        to: process.env.NOTIFICATION_EMAIL!,
+        subject,
+        html: htmlContent
+      });
+
+      logger.info(`📧 Stop loss email sent for ${data.symbol}`);
+    } catch (error) {
+      logger.error('❌ Failed to send stop loss email:', error);
+    }
+  }
+
+  /**
+   * Send profit target email notification
+   */
+  private async sendProfitTargetEmail(data: any): Promise<void> {
+    try {
+      const subject = `🎯 Profit Target Hit - ${data.symbol}`;
+      
+      const htmlContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 20px; text-align: center;">
+            <h1 style="margin: 0;">🎯 Profit Target Hit</h1>
+          </div>
+          
+          <div style="padding: 20px; background: #f8f9fa;">
+            <h2 style="color: #28a745;">Profit Target Achieved: ${data.symbol}</h2>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <h3 style="margin-top: 0; color: #28a745;">Position Details</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Position ID:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">${data.positionId || 'N/A'}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Symbol:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">${data.symbol}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Entry Price:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">${(data.entryPrice || 0).toFixed(4)}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Exit Price:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">${(data.exitPrice || 0).toFixed(4)}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Quantity:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd;">${data.quantity || 0}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Realized P&L:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd; color: #28a745;">${(data.realizedPnL || 0).toFixed(2)}</td></tr>
+                <tr><td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Profit Percentage:</strong></td><td style="padding: 8px; border-bottom: 1px solid #ddd; color: #28a745;">${(data.profitPercentage || 0).toFixed(2)}%</td></tr>
+              </table>
+            </div>
+
+            <p style="margin-top: 20px; color: #666; text-align: center;">
+              <em>Profit target hit at ${(data.timestamp || new Date()).toLocaleString()}</em>
+            </p>
+          </div>
+        </div>
+      `;
+
+      await this.emailService.send({
+        to: process.env.NOTIFICATION_EMAIL!,
+        subject,
+        html: htmlContent
+      });
+
+      logger.info(`📧 Profit target email sent for ${data.symbol}`);
+    } catch (error) {
+      logger.error('❌ Failed to send profit target email:', error);
+    }
   }
 }
 

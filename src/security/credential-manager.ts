@@ -82,8 +82,10 @@ export class CredentialManager {
   private static readonly CACHE_TTL = 5 * 60 * 1000;
 
   constructor() {
-    // Initialize credential encryption key
-    this.initializeCredentialKey();
+    // Initialize credential encryption key asynchronously
+    this.initializeCredentialKey().catch(error => {
+      logger.error('❌ Failed to initialize credential manager:', error);
+    });
     
     // Start cache cleanup
     this.startCacheCleanup();

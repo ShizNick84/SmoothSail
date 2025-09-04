@@ -153,9 +153,24 @@ export class GateIOClient {
     protocol: 'http' | 'https';
   } | null = null;
 
-  constructor() {
+  constructor(config?: {
+    apiKey?: string;
+    apiSecret?: string;
+    passphrase?: string;
+    testnet?: boolean;
+    baseUrl?: string;
+  }) {
     this.credentialManager = new CredentialManager();
     this.auditService = new AuditService();
+    
+    // Store credentials if provided
+    if (config?.apiKey && config?.apiSecret) {
+      this.credentials = {
+        apiKey: config.apiKey,
+        secretKey: config.apiSecret,
+        passphrase: config.passphrase || ''
+      };
+    }
     
     // Initialize rate limiters with conservative limits
     this.publicRateLimiter = new RateLimiterMemory(RATE_LIMITS.PUBLIC);
@@ -209,10 +224,12 @@ export class GateIOClient {
       if (isHealthy) {
         logger.info('✅ Gate.io API client initialized successfully');
         await this.auditService.logSecurityEvent({
-          type: 'API_CLIENT_INITIALIZED',
-          severity: 'INFO',
-          details: { exchange: 'Gate.io', proxyHost, proxyPort },
-          timestamp: new Date(),
+          eventType: 'API_CLIENT_INITIALIZED',
+          actor: 'SYSTEM',
+          resource: 'GATE_IO_CLIENT',
+          action: 'INITIALIZE',
+          result: 'SUCCESS',
+          auditData: { exchange: 'Gate.io', proxyHost, proxyPort }
         });
         return true;
       } else {
@@ -223,10 +240,12 @@ export class GateIOClient {
     } catch (error) {
       logger.error('❌ Failed to initialize Gate.io API client:', error);
       await this.auditService.logSecurityEvent({
-        type: 'API_CLIENT_INIT_FAILED',
-        severity: 'ERROR',
-        details: { error: error.message },
-        timestamp: new Date(),
+        eventType: 'API_CLIENT_INIT_FAILED',
+        actor: 'SYSTEM',
+        resource: 'GATE_IO_CLIENT',
+        action: 'INITIALIZE',
+        result: 'FAILURE',
+        auditData: { error: error.message }
       });
       return false;
     }
@@ -250,10 +269,10 @@ export class GateIOClient {
       
       // Decrypt credentials using credential manager
       this.credentials = {
-        apiKey: await this.credentialManager.decryptCredential(encryptedCredentials.apiKey),
-        secretKey: await this.credentialManager.decryptCredential(encryptedCredentials.secretKey),
+        apiKey: await this.credentialManager.getCredential(encryptedCredentials.apiKey),
+        secretKey: await this.credentialManager.getCredential(encryptedCredentials.secretKey),
         passphrase: encryptedCredentials.passphrase 
-          ? await this.credentialManager.decryptCredential(encryptedCredentials.passphrase)
+          ? await this.credentialManager.getCredential(encryptedCredentials.passphrase)
           : undefined,
       };
       
@@ -316,14 +335,14 @@ export class GateIOClient {
   /**
    * Handle request interceptor for authentication and logging
    */
-  private async handleRequestInterceptor(config: AxiosRequestConfig): Promise<AxiosRequestConfig> {
+  private handleRequestInterceptor(config: any): any {
     const startTime = Date.now();
     
     // Add request timing for metrics
-    config.metadata = { startTime };
+    (config as any).metadata = { startTime };
     
     // Skip authentication for public endpoints
-    if (config.skipAuth) {
+    if ((config as any).skipAuth) {
       return config;
     }
     
@@ -349,13 +368,12 @@ export class GateIOClient {
       }
     }
     
-    // Log API request for audit trail
-    await this.auditService.logAPIRequest({
+    // Log API request for audit trail (fire and forget)
+    this.auditService.logAPIRequest({
       method: config.method?.toUpperCase() || 'GET',
       url: config.url || '',
-      timestamp: new Date(),
       headers: this.sanitizeHeaders(config.headers || {}),
-    });
+    }).catch(error => logger.error('Failed to log API request:', error));
     
     return config;
   }
@@ -385,7 +403,7 @@ export class GateIOClient {
    */
   private async handleResponseInterceptor(response: AxiosResponse): Promise<AxiosResponse> {
     const endTime = Date.now();
-    const startTime = response.config.metadata?.startTime || endTime;
+    const startTime = (response.config as any).metadata?.startTime || endTime;
     const responseTime = endTime - startTime;
     
     // Update health metrics
@@ -393,10 +411,10 @@ export class GateIOClient {
     
     // Log successful API response
     await this.auditService.logAPIResponse({
-      status: response.status,
-      responseTime,
-      timestamp: new Date(),
-      success: true,
+      statusCode: response.status,
+      method: response.config.method?.toUpperCase() || 'GET',
+      url: response.config.url || '',
+      responseTime
     });
     
     return response;
@@ -409,10 +427,12 @@ export class GateIOClient {
     logger.error('❌ API request error:', error.message);
     
     await this.auditService.logSecurityEvent({
-      type: 'API_REQUEST_ERROR',
-      severity: 'ERROR',
-      details: { error: error.message },
-      timestamp: new Date(),
+      eventType: 'API_REQUEST_ERROR',
+      actor: 'SYSTEM',
+      resource: 'GATE_IO_CLIENT',
+      action: 'API_REQUEST',
+      result: 'FAILURE',
+      auditData: { error: error.message }
     });
     
     throw error;
@@ -429,10 +449,10 @@ export class GateIOClient {
     
     // Log failed API response
     await this.auditService.logAPIResponse({
-      status: error.response?.status || 0,
+      statusCode: error.response?.status || 0,
+      method: error.config?.method?.toUpperCase() || 'GET',
+      url: error.config?.url || '',
       responseTime,
-      timestamp: new Date(),
-      success: false,
       error: error.message,
     });
     
@@ -652,6 +672,97 @@ export class GateIOClient {
   }
 
   /**
+   * Check if the API client is connected and healthy
+   */
+  public async isConnected(): Promise<boolean> {
+    try {
+      // Perform a simple API call to check connectivity
+      const serverTime = await this.getServerTime();
+      return serverTime !== null;
+    } catch (error) {
+      logger.warn('API connectivity check failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get server time from Gate.io API
+   */
+  public async getServerTime(): Promise<number | null> {
+    try {
+      const response = await this.makeRequest<{ server_time: number }>({
+        method: 'GET',
+        url: '/spot/time',
+        skipAuth: true
+      });
+      
+      return response.server_time;
+    } catch (error) {
+      logger.error('Failed to get server time:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get account information from Gate.io API
+   */
+  public async getAccountInfo(): Promise<any> {
+    try {
+      const response = await this.makeRequest({
+        method: 'GET',
+        url: '/spot/accounts'
+      });
+      
+      return {
+        user_id: 'gate_user',
+        accounts: response || [],
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      logger.error('Failed to get account info:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get market data for a specific trading pair
+   */
+  public async getMarketData(symbol: string): Promise<any> {
+    try {
+      // Get ticker data
+      const ticker = await this.makeRequest({
+        method: 'GET',
+        url: `/spot/tickers`,
+        params: { currency_pair: symbol },
+        skipAuth: true
+      });
+
+      // Get order book data
+      const orderBook = await this.makeRequest({
+        method: 'GET',
+        url: `/spot/order_book`,
+        params: { currency_pair: symbol, limit: 10 },
+        skipAuth: true
+      });
+
+      return {
+        symbol,
+        price: ticker?.[0]?.last || '0',
+        volume: ticker?.[0]?.base_volume || '0',
+        high24h: ticker?.[0]?.high_24h || '0',
+        low24h: ticker?.[0]?.low_24h || '0',
+        change24h: ticker?.[0]?.change_percentage || '0',
+        bids: orderBook?.bids || [],
+        asks: orderBook?.asks || [],
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      logger.error(`Failed to get market data for ${symbol}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Graceful shutdown of API client
    */
   public async shutdown(): Promise<void> {
@@ -659,10 +770,12 @@ export class GateIOClient {
     
     // Log final health metrics
     await this.auditService.logSecurityEvent({
-      type: 'API_CLIENT_SHUTDOWN',
-      severity: 'INFO',
-      details: { healthMetrics: this.healthMetrics },
-      timestamp: new Date(),
+      eventType: 'API_CLIENT_SHUTDOWN',
+      actor: 'SYSTEM',
+      resource: 'GATE_IO_CLIENT',
+      action: 'SHUTDOWN',
+      result: 'SUCCESS',
+      auditData: { healthMetrics: this.healthMetrics }
     });
     
     // Clear sensitive data

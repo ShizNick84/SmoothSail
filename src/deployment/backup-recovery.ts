@@ -10,7 +10,7 @@
 import { execSync } from 'child_process';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, statSync } from 'fs';
 import { join, basename } from 'path';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 import { databaseSetup } from './database-setup';
 import * as cron from 'node-cron';
 

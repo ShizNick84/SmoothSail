@@ -142,7 +142,7 @@ export class EncryptionService {
       const iv = randomBytes(12); // 96 bits for GCM mode
       
       // Create cipher with AES-256-GCM
-      const cipher = createCipherGCM(EncryptionService.DEFAULT_ALGORITHM, key, iv);
+      const cipher = createCipher(EncryptionService.DEFAULT_ALGORITHM, key);
       
       // Encrypt the data
       let encrypted = cipher.update(data, 'utf8');
@@ -207,8 +207,7 @@ export class EncryptionService {
       );
       
       // Create decipher with AES-256-GCM
-      const decipher = createDecipherGCM(encryptedData.algorithm, key, iv);
-      decipher.setAuthTag(authTag);
+      const decipher = createDecipher(encryptedData.algorithm, key);
       
       // Decrypt the data
       let decrypted = decipher.update(encrypted);

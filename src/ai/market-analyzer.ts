@@ -1090,6 +1090,28 @@ Confidence level: 75%`;
   }
 
   /**
+   * Check if the market analyzer is healthy and functioning properly
+   */
+  public isHealthy(): boolean {
+    try {
+      // Check if analyzer is initialized
+      if (!this.isInitialized) {
+        return false;
+      }
+
+      // Check if LLM engine is available and healthy
+      if (!this.llmEngine || !this.llmEngine.isReady()) {
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      logger.error('❌ Error checking Market Analyzer health:', error);
+      return false;
+    }
+  }
+
+  /**
    * Shutdown the market analyzer
    */
   public async shutdown(): Promise<void> {

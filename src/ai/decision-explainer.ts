@@ -928,7 +928,7 @@ Keep it concise but comprehensive, suitable for both technical and non-technical
     
     if (volatility === 'HIGH' || volatility === 'EXTREMELY_HIGH') {
       return 'Every 4 hours during market hours';
-    } else if (volatility === 'MEDIUM') {
+    } else if (volatility === 'NORMAL') {
       return 'Twice daily (morning and evening)';
     } else {
       return 'Daily review with weekly comprehensive analysis';

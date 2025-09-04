@@ -1075,6 +1075,218 @@ export class OrderManager extends EventEmitter {
   }
 
   /**
+   * Create and place a new order (alias for placeOrder for compatibility)
+   * 
+   * @param orderRequest - Order request parameters
+   * @returns Promise<OrderResponse | null> - Order response or null if failed
+   */
+  public async createOrder(orderRequest: OrderRequest): Promise<OrderResponse | null> {
+    try {
+      const result = await this.placeOrder(orderRequest);
+      return result.success ? result.order : null;
+    } catch (error) {
+      logger.error('❌ Failed to create order:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get all open orders from the exchange
+   * 
+   * @param symbol - Optional symbol filter
+   * @returns Promise<OrderResponse[]> - Array of open orders
+   */
+  public async getOpenOrders(symbol?: string): Promise<OrderResponse[]> {
+    try {
+      logger.debug('📋 Fetching open orders from exchange...');
+      
+      const symbols: TradingSymbol[] = symbol ? [symbol as TradingSymbol] : ['BTC_USDT', 'ETH_USDT'];
+      const allOrders: OrderResponse[] = [];
+      
+      for (const tradingSymbol of symbols) {
+        try {
+          const orders = await this.gateIOClient.makeRequest<OrderResponse[]>({
+            method: 'GET',
+            url: '/spot/orders',
+            params: { 
+              currency_pair: tradingSymbol,
+              status: 'open',
+              limit: 100 
+            },
+          });
+          
+          allOrders.push(...orders);
+        } catch (error) {
+          logger.warn(`⚠️ Failed to fetch orders for ${tradingSymbol}:`, error);
+        }
+      }
+      
+      // Update local cache
+      allOrders.forEach(order => {
+        this.activeOrders.set(order.id, order);
+      });
+      
+      logger.info(`📋 Retrieved ${allOrders.length} open orders`);
+      return allOrders;
+      
+    } catch (error) {
+      logger.error('❌ Failed to get open orders:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Cancel all open orders (emergency stop functionality)
+   * 
+   * @param reason - Reason for cancelling all orders
+   * @returns Promise<boolean> - Success status
+   */
+  public async cancelAllOrders(reason: string = 'Cancel all orders requested'): Promise<boolean> {
+    try {
+      logger.warn(`🚨 Cancelling all open orders: ${reason}`);
+      
+      // Get all open orders first
+      const openOrders = await this.getOpenOrders();
+      
+      if (openOrders.length === 0) {
+        logger.info('✅ No open orders to cancel');
+        return true;
+      }
+      
+      // Cancel each order
+      const cancellationPromises = openOrders.map(order => 
+        this.cancelOrder(order.id, reason)
+      );
+      
+      const results = await Promise.allSettled(cancellationPromises);
+      const successCount = results.filter(result => 
+        result.status === 'fulfilled' && result.value === true
+      ).length;
+      
+      const success = successCount === openOrders.length;
+      
+      // Log the operation
+      await this.auditService.logSecurityEvent({
+        type: 'CANCEL_ALL_ORDERS',
+        severity: success ? 'INFO' : 'WARNING',
+        details: { 
+          reason, 
+          totalOrders: openOrders.length, 
+          cancelledOrders: successCount,
+          success 
+        },
+        timestamp: new Date(),
+      });
+      
+      if (success) {
+        logger.info(`✅ Successfully cancelled all ${successCount} orders`);
+      } else {
+        logger.warn(`⚠️ Cancelled ${successCount}/${openOrders.length} orders`);
+      }
+      
+      // Emit cancel all orders event
+      this.emit('cancelAllOrders', reason, successCount, openOrders.length);
+      
+      return success;
+      
+    } catch (error) {
+      logger.error('❌ Failed to cancel all orders:', error);
+      await this.auditService.logSecurityEvent({
+        type: 'CANCEL_ALL_ORDERS_FAILED',
+        severity: 'ERROR',
+        details: { 
+          reason, 
+          error: error.message 
+        },
+        timestamp: new Date(),
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Refresh open orders from the exchange and update local cache
+   * 
+   * @returns Promise<void>
+   */
+  public async refreshOpenOrders(): Promise<void> {
+    try {
+      logger.debug('🔄 Refreshing open orders from exchange...');
+      
+      // Get fresh data from exchange
+      const openOrders = await this.getOpenOrders();
+      
+      // Clear existing active orders and rebuild from fresh data
+      this.activeOrders.clear();
+      
+      // Add all open orders to active orders map
+      openOrders.forEach(order => {
+        this.activeOrders.set(order.id, order);
+      });
+      
+      // Update position tracking
+      for (const order of openOrders) {
+        await this.updatePositionTracking(order);
+      }
+      
+      logger.debug(`🔄 Refreshed ${openOrders.length} open orders`);
+      
+      // Emit refresh event
+      this.emit('ordersRefreshed', openOrders.length);
+      
+    } catch (error) {
+      logger.error('❌ Failed to refresh open orders:', error);
+    }
+  }
+
+  /**
+   * Check if the order manager is healthy and operational
+   * 
+   * @returns boolean - Health status
+   */
+  public isHealthy(): boolean {
+    try {
+      // Check if the order manager is properly initialized
+      if (!this.gateIOClient || !this.auditService) {
+        logger.warn('⚠️ Order manager not properly initialized');
+        return false;
+      }
+      
+      // Check if monitoring is running
+      if (!this.statusMonitorInterval) {
+        logger.warn('⚠️ Order status monitoring not running');
+        return false;
+      }
+      
+      // Check if we have reasonable statistics (not all zeros)
+      if (this.stats.totalOrders > 0 && this.stats.successRate < 0.5) {
+        logger.warn('⚠️ Order success rate is below 50%');
+        return false;
+      }
+      
+      // Check if we have too many active orders (potential issue)
+      const activeOrderCount = this.getActiveOrders().length;
+      if (activeOrderCount > 100) {
+        logger.warn(`⚠️ Too many active orders: ${activeOrderCount}`);
+        return false;
+      }
+      
+      // Check if average execution time is reasonable
+      if (this.stats.averageExecutionTime > 30000) { // 30 seconds
+        logger.warn(`⚠️ Average execution time too high: ${this.stats.averageExecutionTime}ms`);
+        return false;
+      }
+      
+      logger.debug('✅ Order manager health check passed');
+      return true;
+      
+    } catch (error) {
+      logger.error('❌ Order manager health check failed:', error);
+      return false;
+    }
+  }
+
+  /**
    * Graceful shutdown
    */
   public async shutdown(): Promise<void> {

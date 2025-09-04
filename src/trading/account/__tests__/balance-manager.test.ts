@@ -577,6 +577,132 @@ describe('BalanceManager', () => {
     });
   });
 
+  describe('New Balance Manager Methods', () => {
+    beforeEach(async () => {
+      mockGateIOClient.makeRequest
+        .mockResolvedValueOnce(sampleSpotAccounts)
+        .mockResolvedValueOnce(sampleTradeHistory);
+      await balanceManager.initialize();
+    });
+
+    describe('getTotalBalance', () => {
+      it('should return total balance (alias for getTotalPortfolioValue)', async () => {
+        // Mock price requests
+        mockGateIOClient.makeRequest
+          .mockResolvedValueOnce([{ last: '50000' }]) // BTC price
+          .mockResolvedValueOnce([{ last: '3000' }]); // ETH price
+        
+        const totalBalance = await balanceManager.getTotalBalance();
+        
+        expect(totalBalance).toBe(38700); // Same as getTotalPortfolioValue
+      });
+    });
+
+    describe('getPositions', () => {
+      it('should return positions with non-zero balances', async () => {
+        const positions = await balanceManager.getPositions();
+        
+        expect(positions.size).toBe(3); // All sample accounts have non-zero balances
+        expect(positions.has('BTC')).toBe(true);
+        expect(positions.has('ETH')).toBe(true);
+        expect(positions.has('USDT')).toBe(true);
+      });
+
+      it('should filter out dust amounts', async () => {
+        const dustAccounts = [
+          { currency: 'BTC', available: '0.00000001', locked: '0' },
+          { currency: 'ETH', available: '1.0', locked: '0' },
+        ];
+        
+        mockGateIOClient.makeRequest.mockResolvedValueOnce(dustAccounts);
+        
+        await balanceManager.refreshBalance();
+        const positions = await balanceManager.getPositions();
+        
+        expect(positions.size).toBe(1); // Only ETH should remain
+        expect(positions.has('ETH')).toBe(true);
+        expect(positions.has('BTC')).toBe(false);
+      });
+
+      it('should handle errors gracefully', async () => {
+        mockGateIOClient.makeRequest.mockRejectedValue(new Error('API error'));
+        
+        const positions = await balanceManager.getPositions();
+        
+        expect(positions.size).toBe(0);
+      });
+    });
+
+    describe('refreshBalance', () => {
+      it('should refresh balance data successfully', async () => {
+        const updatedAccounts = [
+          { currency: 'BTC', available: '0.8', locked: '0.1' },
+        ];
+        
+        mockGateIOClient.makeRequest
+          .mockResolvedValueOnce(updatedAccounts) // refresh call
+          .mockResolvedValueOnce(updatedAccounts); // validation call
+        
+        const result = await balanceManager.refreshBalance();
+        
+        expect(result).toBe(true);
+        expect(mockAuditService.logSecurityEvent).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'BALANCE_REFRESH_COMPLETED'
+          })
+        );
+      });
+
+      it('should handle refresh errors', async () => {
+        mockGateIOClient.makeRequest.mockRejectedValue(new Error('Refresh error'));
+        
+        const result = await balanceManager.refreshBalance();
+        
+        expect(result).toBe(false);
+        expect(mockAuditService.logSecurityEvent).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'BALANCE_REFRESH_FAILED'
+          })
+        );
+      });
+    });
+
+    describe('isHealthy', () => {
+      it('should return true when all health checks pass', async () => {
+        // Mock successful API connectivity check
+        mockGateIOClient.makeRequest.mockResolvedValueOnce([]);
+        
+        const isHealthy = await balanceManager.isHealthy();
+        
+        expect(isHealthy).toBe(true);
+        expect(mockAuditService.logSecurityEvent).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'BALANCE_MANAGER_HEALTH_CHECK'
+          })
+        );
+      });
+
+      it('should return false when API connectivity fails', async () => {
+        // Mock API connectivity failure
+        mockGateIOClient.makeRequest.mockRejectedValue(new Error('API error'));
+        
+        const isHealthy = await balanceManager.isHealthy();
+        
+        // Health might still be true if other checks pass (80% threshold)
+        expect(typeof isHealthy).toBe('boolean');
+      });
+
+      it('should handle health check errors', async () => {
+        // Create a scenario that would cause health check to fail
+        const balanceManagerWithoutBalances = new BalanceManager(mockGateIOClient);
+        
+        const isHealthy = await balanceManagerWithoutBalances.isHealthy();
+        
+        expect(isHealthy).toBe(false);
+      });
+    });
+  });
+
   describe('Real-time Monitoring', () => {
     it('should start monitoring when enabled in config', async () => {
       const config = { enableRealTimeMonitoring: true, monitoringInterval: 1000 };

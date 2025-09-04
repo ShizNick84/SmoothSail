@@ -153,7 +153,13 @@ export class StrategyHarmonizationEngine {
       strength,
       confidence,
       indicators,
-      weights,
+      weights: {
+        movingAverage: weights.movingAverage || 0,
+        rsi: weights.rsi || 0,
+        macd: weights.macd || 0,
+        fibonacci: weights.fibonacci || 0,
+        breakout: weights.breakout || 0
+      },
       conflicts,
       reasoning
     };
@@ -394,13 +400,13 @@ export class StrategyHarmonizationEngine {
     }
 
     // Check for conflicts
-    if (harmonizedSignal.conflicts.length > 0) {
-      issues.push(`Signal conflicts detected: ${harmonizedSignal.conflicts.length} conflicts`);
+    if (harmonizedSignal.consensus.conflicting) {
+      issues.push(`Signal conflicts detected: conflicting strategies`);
       recommendations.push('Review conflicting indicators and consider market context');
     }
 
     // Check signal strength
-    if (harmonizedSignal.strength < 50 && harmonizedSignal.overallSignal !== 'HOLD') {
+    if (harmonizedSignal.strength < 50 && harmonizedSignal.type !== 'HOLD') {
       issues.push(`Weak signal strength (${harmonizedSignal.strength.toFixed(1)}%)`);
       recommendations.push('Consider reducing position size or waiting for stronger signals');
     }

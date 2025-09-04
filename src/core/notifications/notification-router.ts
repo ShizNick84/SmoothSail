@@ -620,7 +620,7 @@ export class NotificationRouter {
           price: alert.data.price,
           pnl: alert.data.pnl,
           balance: alert.data.balance,
-          strategy: alert.data.strategy,
+          reasoning: alert.data.strategy,
           timestamp: alert.timestamp
         });
 

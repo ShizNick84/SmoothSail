@@ -161,7 +161,7 @@ export class TunnelRouter extends EventEmitter {
       // Create and establish tunnel connections
       for (const config of tunnelConfigs) {
         const connection = await this.tunnelManager.establishTunnel(config);
-        await this.tunnelManager.establishTunnel(connection.id);
+        // Connection is already established by the first call
         
         // Initialize health status for tunnel
         this.activeTunnels.set(connection.id, {
@@ -183,13 +183,15 @@ export class TunnelRouter extends EventEmitter {
       this.startQueueProcessing();
       
       await this.auditService.logSecurityEvent({
-        type: 'TUNNEL_ROUTER_INITIALIZED',
-        severity: 'INFO',
-        details: { 
+        eventType: 'TUNNEL_ROUTER_INITIALIZED',
+        actor: 'SYSTEM',
+        resource: 'TUNNEL_ROUTER',
+        action: 'INITIALIZE',
+        result: 'SUCCESS',
+        auditData: { 
           tunnelCount: tunnelConfigs.length,
           activeTunnelId: this.currentTunnelId 
-        },
-        timestamp: new Date(),
+        }
       });
       
       logger.info('✅ Tunnel router initialized successfully');

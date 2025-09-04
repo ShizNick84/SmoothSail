@@ -135,6 +135,12 @@ export class BalanceManager extends EventEmitter {
     this.gateIOClient = gateIOClient;
     this.auditService = new AuditService();
     
+    // Initialize Maps properly
+    this.currentBalances = new Map<string, AccountBalance>();
+    this.balanceAlerts = new Map<string, BalanceAlert[]>();
+    this.transactionHistory = new Map<string, TradeHistory[]>();
+    this.balanceHistory = [];
+    
     // Initialize statistics
     this.stats = {
       totalBalanceChecks: 0,
@@ -158,6 +164,11 @@ export class BalanceManager extends EventEmitter {
       emergencyStopThreshold: 10, // 10% loss
     };
     
+    // Fix any potential Map handling issues
+    this.fixCurrencyIteration().catch(error => {
+      logger.error('❌ Failed to fix currency iteration during initialization:', error);
+    });
+    
     logger.info('💰 Balance Manager initialized with comprehensive monitoring');
   }
 
@@ -175,6 +186,9 @@ export class BalanceManager extends EventEmitter {
       if (config) {
         this.config = { ...this.config, ...config };
       }
+      
+      // Fix currency iteration and Map handling
+      await this.fixCurrencyIteration();
       
       // Load initial balances
       await this.loadCurrentBalances();
@@ -196,13 +210,15 @@ export class BalanceManager extends EventEmitter {
       }
       
       await this.auditService.logSecurityEvent({
-        type: 'BALANCE_MANAGER_INITIALIZED',
-        severity: 'INFO',
-        details: { 
+        eventType: 'BALANCE_MANAGER_INITIALIZED',
+        actor: 'SYSTEM',
+        resource: 'BALANCE_MANAGER',
+        action: 'INITIALIZE',
+        result: 'SUCCESS',
+        auditData: { 
           config: this.config,
           initialBalanceCount: this.currentBalances.size 
-        },
-        timestamp: new Date(),
+        }
       });
       
       logger.info('✅ Balance Manager initialized successfully');
@@ -211,10 +227,12 @@ export class BalanceManager extends EventEmitter {
     } catch (error) {
       logger.error('❌ Failed to initialize Balance Manager:', error);
       await this.auditService.logSecurityEvent({
-        type: 'BALANCE_MANAGER_INIT_FAILED',
-        severity: 'ERROR',
-        details: { error: error.message },
-        timestamp: new Date(),
+        eventType: 'BALANCE_MANAGER_INIT_FAILED',
+        actor: 'SYSTEM',
+        resource: 'BALANCE_MANAGER',
+        action: 'INITIALIZE',
+        result: 'FAILURE',
+        auditData: { error: error.message }
       });
       return false;
     }
@@ -268,7 +286,9 @@ export class BalanceManager extends EventEmitter {
       const balances = await this.getCurrentBalances();
       let totalValue = 0;
       
-      for (const [currency, balance] of balances) {
+      const currencies = Array.from(balances.keys());
+      for (const currency of currencies) {
+        const balance = balances.get(currency)!;
         if (currency === 'USDT' || currency === 'USD') {
           totalValue += parseFloat(balance.total);
         } else {
@@ -546,15 +566,17 @@ export class BalanceManager extends EventEmitter {
         logger.error(`🚨 EMERGENCY STOP TRIGGERED: ${lossPercent.toFixed(2)}% portfolio loss detected`);
         
         await this.auditService.logSecurityEvent({
-          type: 'EMERGENCY_BALANCE_STOP',
-          severity: 'CRITICAL',
-          details: {
+          eventType: 'EMERGENCY_BALANCE_STOP',
+          actor: 'SYSTEM',
+          resource: 'BALANCE_MANAGER',
+          action: 'EMERGENCY_STOP',
+          result: 'SUCCESS',
+          auditData: {
             currentValue,
             historicalValue,
             lossPercent,
             threshold: this.config.emergencyStopThreshold,
-          },
-          timestamp: new Date(),
+          }
         });
         
         // Emit emergency stop event
@@ -815,7 +837,9 @@ export class BalanceManager extends EventEmitter {
    * Check balance alerts
    */
   private async checkBalanceAlerts(): Promise<void> {
-    for (const [currency, alerts] of this.balanceAlerts) {
+    const alertCurrencies = Array.from(this.balanceAlerts.keys());
+    for (const currency of alertCurrencies) {
+      const alerts = this.balanceAlerts.get(currency)!;
       const balance = this.currentBalances.get(currency);
       if (!balance) continue;
       
@@ -980,10 +1004,12 @@ export class BalanceManager extends EventEmitter {
    */
   private async logBalanceEvent(eventType: string, eventData: any): Promise<void> {
     await this.auditService.logSecurityEvent({
-      type: eventType,
-      severity: 'INFO',
-      details: eventData,
-      timestamp: new Date(),
+      eventType: eventType,
+      actor: 'SYSTEM',
+      resource: 'BALANCE_MANAGER',
+      action: 'BALANCE_EVENT',
+      result: 'SUCCESS',
+      auditData: eventData
     });
   }
 
@@ -1023,6 +1049,175 @@ export class BalanceManager extends EventEmitter {
   }
 
   /**
+   * Get total balance (alias for getTotalPortfolioValue for compatibility)
+   * 
+   * @returns Promise<number> - Total portfolio value in USD
+   */
+  public async getTotalBalance(): Promise<number> {
+    return await this.getTotalPortfolioValue();
+  }
+
+  /**
+   * Get current positions for all currencies with non-zero balances
+   * 
+   * @returns Promise<Map<string, AccountBalance>> - Current positions
+   */
+  public async getPositions(): Promise<Map<string, AccountBalance>> {
+    try {
+      const balances = await this.getCurrentBalances();
+      const positions = new Map<string, AccountBalance>();
+      
+      // Filter out zero balances and include only meaningful positions
+      const currencies = Array.from(balances.keys());
+      for (const currency of currencies) {
+        const balance = balances.get(currency)!;
+        const totalBalance = parseFloat(balance.total);
+        if (totalBalance > 0.00000001) { // Filter out dust amounts
+          positions.set(currency, balance);
+        }
+      }
+      
+      logger.debug(`📊 Retrieved ${positions.size} active positions`);
+      return positions;
+      
+    } catch (error) {
+      logger.error('❌ Failed to get positions:', error);
+      return new Map();
+    }
+  }
+
+  /**
+   * Refresh balance data from exchange
+   * 
+   * @returns Promise<boolean> - Success status
+   */
+  public async refreshBalance(): Promise<boolean> {
+    try {
+      logger.info('🔄 Refreshing balance data from exchange...');
+      
+      await this.loadCurrentBalances();
+      
+      // Validate balances after refresh
+      const discrepancies = await this.validateBalances();
+      
+      // Log refresh event
+      await this.logBalanceEvent('BALANCE_REFRESH_COMPLETED', {
+        balanceCount: this.currentBalances.size,
+        discrepanciesFound: discrepancies.length,
+        timestamp: new Date(),
+      });
+      
+      logger.info(`✅ Balance refresh completed - ${this.currentBalances.size} currencies loaded`);
+      return true;
+      
+    } catch (error) {
+      logger.error('❌ Failed to refresh balance:', error);
+      await this.logBalanceEvent('BALANCE_REFRESH_FAILED', {
+        error: error.message,
+        timestamp: new Date(),
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Check if balance manager is healthy and operational
+   * 
+   * @returns Promise<boolean> - Health status
+   */
+  public async isHealthy(): Promise<boolean> {
+    try {
+      const healthChecks = {
+        hasBalances: this.currentBalances.size > 0,
+        recentUpdate: this.stats.lastBalanceUpdate && 
+          (Date.now() - this.stats.lastBalanceUpdate.getTime()) < (this.config.monitoringInterval * 2),
+        apiConnectivity: false,
+        lowDiscrepancyRate: this.stats.balanceAccuracy > 95,
+        noRecentErrors: true, // Would need error tracking
+      };
+      
+      // Test API connectivity
+      try {
+        await this.gateIOClient.makeRequest({
+          method: 'GET',
+          url: '/spot/accounts',
+          params: { limit: 1 }
+        });
+        healthChecks.apiConnectivity = true;
+      } catch (error) {
+        logger.warn('⚠️ API connectivity check failed:', error.message);
+        healthChecks.apiConnectivity = false;
+      }
+      
+      // Calculate overall health
+      const healthScore = Object.values(healthChecks).filter(Boolean).length / Object.keys(healthChecks).length;
+      const isHealthy = healthScore >= 0.8; // 80% of checks must pass
+      
+      // Log health check
+      await this.logBalanceEvent('BALANCE_MANAGER_HEALTH_CHECK', {
+        isHealthy,
+        healthScore,
+        healthChecks,
+        timestamp: new Date(),
+      });
+      
+      if (!isHealthy) {
+        logger.warn(`⚠️ Balance Manager health check failed - Score: ${(healthScore * 100).toFixed(1)}%`);
+      } else {
+        logger.debug(`✅ Balance Manager healthy - Score: ${(healthScore * 100).toFixed(1)}%`);
+      }
+      
+      return isHealthy;
+      
+    } catch (error) {
+      logger.error('❌ Failed to check balance manager health:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Fix currency iteration issues by ensuring proper Map handling
+   * 
+   * @returns Promise<void>
+   */
+  private async fixCurrencyIteration(): Promise<void> {
+    try {
+      // Ensure currentBalances is properly initialized as a Map
+      if (!(this.currentBalances instanceof Map)) {
+        this.currentBalances = new Map();
+        logger.warn('⚠️ Fixed currentBalances Map initialization');
+      }
+      
+      // Ensure balanceAlerts is properly initialized as a Map
+      if (!(this.balanceAlerts instanceof Map)) {
+        this.balanceAlerts = new Map();
+        logger.warn('⚠️ Fixed balanceAlerts Map initialization');
+      }
+      
+      // Ensure transactionHistory is properly initialized as a Map
+      if (!(this.transactionHistory instanceof Map)) {
+        this.transactionHistory = new Map();
+        logger.warn('⚠️ Fixed transactionHistory Map initialization');
+      }
+      
+      // Clean up any invalid entries in Maps
+      const currencies = Array.from(this.currentBalances.keys());
+      for (const currency of currencies) {
+        const balance = this.currentBalances.get(currency);
+        if (!currency || typeof currency !== 'string' || !balance) {
+          this.currentBalances.delete(currency);
+          logger.warn(`⚠️ Removed invalid balance entry: ${currency}`);
+        }
+      }
+      
+      logger.debug('✅ Currency iteration and Map handling verified');
+      
+    } catch (error) {
+      logger.error('❌ Failed to fix currency iteration:', error);
+    }
+  }
+
+  /**
    * Graceful shutdown
    */
   public async shutdown(): Promise<void> {
@@ -1044,14 +1239,16 @@ export class BalanceManager extends EventEmitter {
     
     // Log final statistics
     await this.auditService.logSecurityEvent({
-      type: 'BALANCE_MANAGER_SHUTDOWN',
-      severity: 'INFO',
-      details: { 
+      eventType: 'BALANCE_MANAGER_SHUTDOWN',
+      actor: 'SYSTEM',
+      resource: 'BALANCE_MANAGER',
+      action: 'SHUTDOWN',
+      result: 'SUCCESS',
+      auditData: { 
         stats: this.stats,
         balanceCount: this.currentBalances.size,
         snapshotCount: this.balanceHistory.length 
-      },
-      timestamp: new Date(),
+      }
     });
     
     logger.info('✅ Balance Manager shutdown completed');

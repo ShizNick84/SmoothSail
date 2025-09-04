@@ -636,6 +636,41 @@ export class AdaptiveLearner extends EventEmitter {
       throw error;
     }
   }
+
+  /**
+   * Check if the adaptive learner is healthy and functioning properly
+   */
+  public isHealthy(): boolean {
+    try {
+      // Check if learning system is initialized
+      if (!this.isInitialized) {
+        return false;
+      }
+
+      // Check if we have sufficient data for learning
+      if (this.tradingOutcomes.length === 0) {
+        logger.debug('📊 No trading outcomes available for learning yet');
+        return true; // Still healthy, just no data yet
+      }
+
+      // Check learning performance metrics
+      const summary = this.getLearningSummary();
+      if (summary.overallWinRate < 30) {
+        logger.warn('⚠️ Learning accuracy is below acceptable threshold');
+      }
+
+      // Check for memory usage (basic check)
+      if (this.tradingOutcomes.length > 10000) {
+        logger.warn('⚠️ Large number of trading outcomes in memory, consider archiving');
+      }
+
+      return true;
+      
+    } catch (error) {
+      logger.error('❌ Error checking adaptive learner health:', error);
+      return false;
+    }
+  }
 }
 
 // Export types

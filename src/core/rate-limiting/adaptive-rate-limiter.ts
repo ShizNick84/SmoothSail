@@ -321,25 +321,25 @@ export class AdaptiveRateLimiter extends EventEmitter {
     return {
       timestamp: new Date(),
       cpu: {
-        usage: systemMetrics.cpu.usage,
+        usage: systemMetrics.cpu?.utilization || 0,
         temperature: systemMetrics.cpu.temperature,
-        cores: systemMetrics.cpu.cores || 4
+        cores: typeof systemMetrics.cpu?.cores === 'object' ? systemMetrics.cpu.cores.logical : 4
       },
       memory: {
-        used: systemMetrics.memory.used,
-        total: systemMetrics.memory.total,
-        usagePercent: systemMetrics.memory.usagePercent,
-        available: systemMetrics.memory.available
+        used: systemMetrics.ram?.used || 0,
+        total: systemMetrics.ram?.total || 0,
+        usagePercent: systemMetrics.ram?.utilization || 0,
+        available: systemMetrics.ram?.available || 0
       },
       network: {
         latency: networkLatency,
-        bandwidth: systemMetrics.network?.bandwidth,
+        bandwidth: (systemMetrics.network?.downloadSpeed || 0) + (systemMetrics.network?.uploadSpeed || 0),
         packetLoss: systemMetrics.network?.packetLoss
       },
       disk: {
-        usage: systemMetrics.disk?.usage || 0,
-        readSpeed: systemMetrics.disk?.readSpeed,
-        writeSpeed: systemMetrics.disk?.writeSpeed
+        usage: systemMetrics.ssd?.utilization || 0,
+        readSpeed: systemMetrics.ssd?.readThroughput || 0,
+        writeSpeed: systemMetrics.ssd?.writeThroughput || 0
       },
       sshTunnel: sshTunnelStatus
     };
@@ -736,9 +736,4 @@ export class AdaptiveRateLimiter extends EventEmitter {
   }
 }
 
-export { 
-  PerformanceThresholds, 
-  AdaptationStrategy, 
-  SystemPerformanceMetrics, 
-  RateLimitAdaptation 
-};
+// Exports are handled by individual export statements above

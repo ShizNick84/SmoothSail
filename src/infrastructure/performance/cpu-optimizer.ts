@@ -27,6 +27,7 @@
 import { logger } from '@/core/logging/logger';
 import { EventEmitter } from 'events';
 import { cpus } from 'os';
+import * as os from 'os';
 import { Worker, isMainThread, parentPort } from 'worker_threads';
 
 /**
@@ -630,8 +631,13 @@ export class CPUOptimizer extends EventEmitter {
 
       // Set high priority for main trading process
       try {
-        process.setpriority(process.pid, -5); // Higher priority
-        logger.info('✅ Main process priority optimized');
+        // Use os.setPriority() which is the correct Node.js method
+        if (os.setPriority) {
+          os.setPriority(process.pid, -5); // Higher priority (lower number = higher priority)
+          logger.info('✅ Main process priority optimized');
+        } else {
+          logger.warn('⚠️ Process priority optimization not available on this platform');
+        }
       } catch (error) {
         logger.warn('⚠️ Failed to set process priority:', error);
       }

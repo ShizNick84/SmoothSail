@@ -80,7 +80,12 @@ export const LogEmojis = {
   TELEGRAM: '📱',
   EMAIL: '📧',
   BELL: '🔔',
-  MUTE: '🔕'
+  MUTE: '🔕',
+  
+  // Analytics and reporting
+  REPORT: '📊',
+  TRADING: '💹',
+  INSIGHT: '💡'
 } as const;
 
 /**
@@ -220,7 +225,7 @@ export class EnhancedLogger extends Logger {
     threshold?: { warning: number; critical: number },
     meta?: LogMetadata
   ): void {
-    let emoji = LogEmojis.INFO;
+    let emoji: string = LogEmojis.INFO;
     let level: 'info' | 'warn' | 'error' = 'info';
     
     if (threshold) {
@@ -479,4 +484,3 @@ export const enhancedLogger = new EnhancedLogger();
 
 // Export types and constants
 export type { LogMetadata };
-export { LogEmojis, LogColors };

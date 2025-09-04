@@ -118,7 +118,7 @@ export class PerformanceMonitor extends EventEmitter {
         }
       }, intervalMs);
 
-      tradingLogger.logApplicationLifecycle('startup', 'PerformanceMonitor', {
+      tradingLogger.info('PerformanceMonitor started', {
         interval: intervalMs,
         thresholds: this.thresholds
       });
@@ -142,7 +142,7 @@ export class PerformanceMonitor extends EventEmitter {
     
     this.isMonitoring = false;
     
-    tradingLogger.logApplicationLifecycle('shutdown', 'PerformanceMonitor');
+    tradingLogger.info('PerformanceMonitor shutdown');
     this.emit('monitoring_stopped');
   }
 
@@ -301,7 +301,24 @@ export class PerformanceMonitor extends EventEmitter {
           memory: memoryUsage,
           disk: diskUsage
         },
-        thresholds: this.thresholds,
+        thresholds: {
+          warning: {
+            cpu: this.thresholds.cpu.warning,
+            memory: this.thresholds.memory.warning,
+            disk: this.thresholds.disk.warning,
+            temperature: this.thresholds.temperature.warning,
+            network: this.thresholds.network.warning,
+            database: this.thresholds.database.warning
+          },
+          critical: {
+            cpu: this.thresholds.cpu.critical,
+            memory: this.thresholds.memory.critical,
+            disk: this.thresholds.disk.critical,
+            temperature: this.thresholds.temperature.critical,
+            network: this.thresholds.network.critical,
+            database: this.thresholds.database.critical
+          }
+        },
         status,
         timestamp
       };
@@ -357,7 +374,24 @@ export class PerformanceMonitor extends EventEmitter {
             connections: networkStats.connections
           }
         },
-        thresholds: this.thresholds,
+        thresholds: {
+          warning: {
+            cpu: this.thresholds.cpu.warning,
+            memory: this.thresholds.memory.warning,
+            disk: this.thresholds.disk.warning,
+            temperature: this.thresholds.temperature.warning,
+            network: this.thresholds.network.warning,
+            database: this.thresholds.database.warning
+          },
+          critical: {
+            cpu: this.thresholds.cpu.critical,
+            memory: this.thresholds.memory.critical,
+            disk: this.thresholds.disk.critical,
+            temperature: this.thresholds.temperature.critical,
+            network: this.thresholds.network.critical,
+            database: this.thresholds.database.critical
+          }
+        },
         status,
         timestamp
       };

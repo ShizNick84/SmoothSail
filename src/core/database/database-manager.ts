@@ -52,6 +52,7 @@ export interface DatabaseHealth {
   totalQueries: number;
   averageQueryTime: number;
   lastError: string | null;
+  error?: string; // For compatibility with main.ts error handling
   uptime: number;
   timestamp: Date;
 }

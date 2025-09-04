@@ -143,6 +143,36 @@ export class PortfolioRiskManager {
   }
 
   /**
+   * Initialize the portfolio risk manager
+   */
+  async initialize(): Promise<void> {
+    // Initialize any required resources
+  }
+
+  /**
+   * Check if the risk manager is healthy
+   */
+  isHealthy(): boolean {
+    return true; // Simple health check
+  }
+
+  /**
+   * Validate a trade against risk parameters
+   */
+  async validateTrade(trade: any): Promise<{ approved: boolean; reason?: string }> {
+    // Simple validation - can be enhanced
+    return { approved: true };
+  }
+
+  /**
+   * Calculate position size for a trade
+   */
+  async calculatePositionSize(signal: any): Promise<number> {
+    // Simple position sizing - can be enhanced
+    return 0.1; // 10% of portfolio
+  }
+
+  /**
    * Analyze portfolio risk and generate comprehensive report
    */
   async analyzePortfolioRisk(positions: Position[]): Promise<PortfolioRiskReport> {

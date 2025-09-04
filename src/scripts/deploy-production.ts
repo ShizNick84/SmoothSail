@@ -11,7 +11,7 @@
 
 import { Command } from 'commander';
 import { ProductionDeployer } from '../deployment/production-deployer';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 import { writeFileSync } from 'fs';
 import { join } from 'path';
 

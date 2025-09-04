@@ -100,6 +100,7 @@ interface PerformancePrediction {
  */
 export class LLMResourceMonitor extends EventEmitter {
   private systemMonitor: SystemMonitor;
+  private isInitialized: boolean = false;
   private isMonitoring: boolean = false;
   private monitoringInterval: NodeJS.Timeout | null = null;
   private currentMetrics: LLMResourceMetrics | null = null;
@@ -178,6 +179,7 @@ export class LLMResourceMonitor extends EventEmitter {
       }, intervalMs);
 
       this.isMonitoring = true;
+      this.isInitialized = true;
       logger.info('✅ LLM resource monitoring started');
 
       this.emit('monitoringStarted');
@@ -226,13 +228,13 @@ export class LLMResourceMonitor extends EventEmitter {
       // Calculate LLM-specific metrics
       const metrics: LLMResourceMetrics = {
         totalMemory: 12288, // 12GB Intel NUC
-        availableMemory: systemResources.memory.available,
+        availableMemory: systemResources.ram?.available || 0,
         llmMemoryUsage: this.estimateLLMMemoryUsage(),
-        memoryPressure: this.calculateMemoryPressure(systemResources.memory.available),
+        memoryPressure: this.calculateMemoryPressure(systemResources.ram?.available || 0),
         
-        cpuUsage: systemResources.cpu.usage,
+        cpuUsage: systemResources.cpu?.utilization || 0,
         cpuTemperature: systemResources.cpu.temperature || 0,
-        availableCores: systemResources.cpu.cores,
+        availableCores: systemResources.cpu?.cores?.logical || 0,
         llmCpuUsage: this.estimateLLMCpuUsage(),
         
         inferenceLatency: this.getAverageInferenceLatency(),
@@ -240,8 +242,8 @@ export class LLMResourceMonitor extends EventEmitter {
         queueLength: this.getQueueLength(),
         
         thermalThrottling: systemResources.cpu.temperature > this.THRESHOLDS.temperature.warning,
-        swapUsage: systemResources.memory.swap || 0,
-        diskIOWait: systemResources.disk.ioWait || 0,
+        swapUsage: systemResources.ram?.swap?.used || 0,
+        diskIOWait: 0, // SSD metrics don't have ioWait in our interface
         
         timestamp: new Date()
       };
@@ -606,6 +608,79 @@ export class LLMResourceMonitor extends EventEmitter {
     if (metrics.inferenceLatency > 2000) score -= 15;
     
     return Math.max(0, Math.round(score));
+  }
+
+  /**
+   * Check if the resource monitor is healthy and functioning properly
+   */
+  public isHealthy(): boolean {
+    try {
+      // Check if monitor is initialized
+      if (!this.isInitialized) {
+        return false;
+      }
+
+      // Check if system monitor is available
+      if (!this.systemMonitor) {
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      logger.error('❌ Error checking LLM Resource Monitor health:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get current resource metrics
+   */
+  public async getResourceMetrics(): Promise<LLMResourceMetrics> {
+    try {
+      if (!this.isInitialized) {
+        throw new Error('Resource monitor not initialized');
+      }
+
+      return this.currentMetrics || {
+        totalMemory: 12288, // 12GB Intel NUC
+        availableMemory: 8192, // Default fallback
+        llmMemoryUsage: 0,
+        memoryPressure: 0,
+        cpuUsage: 0,
+        cpuTemperature: 0,
+        availableCores: 8,
+        thermalThrottling: false,
+        swapUsage: 0,
+        diskIOWait: 0,
+        timestamp: new Date()
+      };
+    } catch (error) {
+      logger.error('❌ Error getting resource metrics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get current resource statistics
+   */
+  public async getStats(): Promise<any> {
+    try {
+      if (!this.isInitialized) {
+        throw new Error('Resource monitor not initialized');
+      }
+
+      const systemResources = await this.systemMonitor.getCurrentResources();
+      const metrics = await this.getResourceMetrics();
+
+      return {
+        systemResources,
+        metrics,
+        timestamp: new Date()
+      };
+    } catch (error) {
+      logger.error('❌ Error getting resource stats:', error);
+      throw error;
+    }
   }
 
   /**

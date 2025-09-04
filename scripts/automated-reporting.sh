@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # =============================================================================
-# AUTOMATED TRADING ANALYTICS AND REPORTING SCHEDULER
+# AI CRYPTO TRADING AGENT - AUTOMATED REPORTING SYSTEM
 # =============================================================================
 # 
-# This script automates the generation of trading performance reports,
-# analytics, and optimization recommendations with scheduled execution.
-# 
+# This script generates comprehensive automated reports for the AI crypto
+# trading agent running on Intel NUC Ubuntu deployment. It analyzes logs,
+# performance metrics, and system health to create detai
 # Features:
 # - Automated daily, weekly, and monthly report generation
 # - Strategy performance analysis scheduling

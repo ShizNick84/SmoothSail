@@ -10,11 +10,25 @@
 import { MarketData, RSISignal, TradingSignal, SignalConfidence } from './types';
 
 export class RSIStrategy {
-  private readonly defaultPeriod = 14;
-  private readonly overboughtThreshold = 70;
-  private readonly oversoldThreshold = 30;
+  private readonly defaultPeriod: number;
+  private readonly overboughtThreshold: number;
+  private readonly oversoldThreshold: number;
   private readonly extremeOverboughtThreshold = 80;
   private readonly extremeOversoldThreshold = 20;
+
+  constructor(config?: {
+    period?: number;
+    overbought?: number;
+    overboughtLevel?: number;
+    oversold?: number;
+    oversoldLevel?: number;
+    symbol?: string;
+  }) {
+    this.defaultPeriod = config?.period || 14;
+    // Support both parameter names for backward compatibility
+    this.overboughtThreshold = config?.overbought || config?.overboughtLevel || 70;
+    this.oversoldThreshold = config?.oversold || config?.oversoldLevel || 30;
+  }
 
   /**
    * Calculate RSI (Relative Strength Index)
@@ -493,8 +507,11 @@ export class RSIStrategy {
    * @param rsi Current RSI value
    * @returns Momentum score (0-100)
    */
-  private calculateMomentumScore(marketData: MarketData[], signalType: 'BUY' | 'SELL', rsi: number): number {
+  private calculateMomentumScore(marketData: MarketData[], signalType: 'BUY' | 'SELL' | 'HOLD', rsi: number): number {
     if (marketData.length < 5) return 50;
+
+    // Handle HOLD signal type
+    if (signalType === 'HOLD') return 50;
 
     const recentPrices = marketData.slice(-5).map(d => d.close);
     const priceChange = (recentPrices[recentPrices.length - 1] - recentPrices[0]) / recentPrices[0];

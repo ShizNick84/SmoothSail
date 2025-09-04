@@ -153,7 +153,7 @@ export class IntelNucEmailService {
       const smtpConfig = await this.loadSMTPConfig();
       
       // Create nodemailer transporter with enhanced security
-      this.transporter = nodemailer.createTransporter({
+      this.transporter = nodemailer.createTransport({
         host: smtpConfig.host,
         port: smtpConfig.port,
         secure: smtpConfig.secure,
@@ -490,15 +490,15 @@ export class IntelNucEmailService {
               </div>
               <div class="trade-row">
                 <span class="trade-label">💵 Price:</span>
-                <span class="trade-value">${{price}}</span>
+                <span class="trade-value">\${{price}}</span>
               </div>
               <div class="trade-row">
                 <span class="trade-label">💰 P&L:</span>
-                <span class="trade-value {{#if (gt pnl 0)}}pnl-positive{{else}}pnl-negative{{/if}}">${{pnl}}</span>
+                <span class="trade-value {{#if (gt pnl 0)}}pnl-positive{{else}}pnl-negative{{/if}}">\${{pnl}}</span>
               </div>
               <div class="trade-row">
                 <span class="trade-label">💎 Balance:</span>
-                <span class="trade-value">${{balance}}</span>
+                <span class="trade-value">\${{balance}}</span>
               </div>
               <div class="trade-row">
                 <span class="trade-label">🧠 Strategy:</span>
@@ -597,11 +597,11 @@ export class IntelNucEmailService {
                 <div class="metric-label">🏆 Win Rate</div>
               </div>
               <div class="metric-card">
-                <div class="metric-value {{#if (gt totalPnL 0)}}positive{{else}}negative{{/if}}">${{totalPnL}}</div>
+                <div class="metric-value {{#if (gt totalPnL 0)}}positive{{else}}negative{{/if}}">\${{totalPnL}}</div>
                 <div class="metric-label">💰 Total P&L</div>
               </div>
               <div class="metric-card">
-                <div class="metric-value">${{balance}}</div>
+                <div class="metric-value">\${{balance}}</div>
                 <div class="metric-label">💎 Balance</div>
               </div>
             </div>
@@ -818,13 +818,8 @@ export class IntelNucEmailService {
       }
     }
 
-    // Decrypt SMTP password if encrypted
-    let smtpPass = process.env.EMAIL_PASSWORD!;
-    try {
-      smtpPass = await this.encryptionService.decrypt(smtpPass);
-    } catch {
-      // If decryption fails, assume it's already plain text
-    }
+    // Use SMTP password directly from environment
+    const smtpPass = process.env.EMAIL_PASSWORD!;
 
     return {
       host: process.env.EMAIL_SMTP_HOST!,

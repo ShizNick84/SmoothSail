@@ -10,7 +10,7 @@
 import { execSync } from 'child_process';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 import { databaseSetup } from './database-setup';
 import { configurationManager } from './configuration-manager';
 import { securityHardening } from './security-hardening';

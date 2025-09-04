@@ -11,7 +11,7 @@ import { Database } from 'sqlite3';
 import { promisify } from 'util';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 
 interface Migration {
   version: number;
@@ -424,19 +424,34 @@ export class DatabaseSetup {
     logger.info(`💾 Creating database backup: ${backupPath}`);
 
     return new Promise((resolve, reject) => {
-      const backup = new Database(backupPath);
-      
-      this.db.backup(backup, (error) => {
-        backup.close();
-        
-        if (error) {
-          logger.error('❌ Database backup failed:', error);
-          reject(error);
-        } else {
-          logger.info('✅ Database backup completed');
-          resolve();
-        }
-      });
+      try {
+        // Close database temporarily for backup
+        this.db.close((closeError) => {
+          if (closeError) {
+            logger.error('❌ Failed to close database for backup:', closeError);
+            reject(closeError);
+            return;
+          }
+          
+          // Copy database file
+          const fs = require('fs');
+          fs.copyFile(this.dbPath, backupPath, (copyError: any) => {
+            // Reopen database
+            this.db = new Database(this.dbPath);
+            
+            if (copyError) {
+              logger.error('❌ Database backup failed:', copyError);
+              reject(copyError);
+            } else {
+              logger.info('✅ Database backup completed');
+              resolve();
+            }
+          });
+        });
+      } catch (error) {
+        logger.error('❌ Database backup failed:', error);
+        reject(error);
+      }
     });
   }
 
@@ -451,19 +466,34 @@ export class DatabaseSetup {
     }
 
     return new Promise((resolve, reject) => {
-      const backup = new Database(backupPath);
-      
-      backup.backup(this.db, (error) => {
-        backup.close();
-        
-        if (error) {
-          logger.error('❌ Database restore failed:', error);
-          reject(error);
-        } else {
-          logger.info('✅ Database restore completed');
-          resolve();
-        }
-      });
+      try {
+        // Close current database
+        this.db.close((closeError) => {
+          if (closeError) {
+            logger.error('❌ Failed to close database for restore:', closeError);
+            reject(closeError);
+            return;
+          }
+          
+          // Copy backup file to database location
+          const fs = require('fs');
+          fs.copyFile(backupPath, this.dbPath, (copyError: any) => {
+            // Reopen database
+            this.db = new Database(this.dbPath);
+            
+            if (copyError) {
+              logger.error('❌ Database restore failed:', copyError);
+              reject(copyError);
+            } else {
+              logger.info('✅ Database restore completed');
+              resolve();
+            }
+          });
+        });
+      } catch (error) {
+        logger.error('❌ Database restore failed:', error);
+        reject(error);
+      }
     });
   }
 
@@ -543,7 +573,7 @@ export class DatabaseSetup {
   }
 
   // Helper methods for database operations
-  private run(sql: string, params: any[] = []): Promise<any> {
+  public run(sql: string, params: any[] = []): Promise<any> {
     return new Promise((resolve, reject) => {
       this.db.run(sql, params, function(error) {
         if (error) {

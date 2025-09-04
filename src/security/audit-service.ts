@@ -446,18 +446,18 @@ export class AuditService {
    * @param entry - Audit entry to hash
    * @returns string SHA-256 hash
    */
-  private calculateEntryHash(entry: Partial<EnhancedAuditEntry>): string {
+  private calculateEntryHash(entry: EnhancedAuditEntry): string {
     const hashData = {
-      auditId: entry.auditId,
-      eventType: entry.eventType,
-      actor: entry.actor,
-      resource: entry.resource,
-      action: entry.action,
-      result: entry.result,
-      timestamp: entry.timestamp,
+      auditId: (entry as any).auditId,
+      eventType: (entry as any).eventType,
+      actor: (entry as any).actor,
+      resource: (entry as any).resource,
+      action: (entry as any).action,
+      result: (entry as any).result,
+      timestamp: (entry as any).timestamp,
       sequenceNumber: entry.sequenceNumber,
       previousHash: entry.previousHash,
-      auditData: entry.auditData
+      auditData: (entry as any).auditData
     };
     
     return createHash('sha256')
@@ -472,8 +472,8 @@ export class AuditService {
    * @param entry - Audit entry to sign
    * @returns string HMAC signature
    */
-  private signAuditEntry(entry: Partial<EnhancedAuditEntry>): string {
-    const signatureData = `${entry.auditId}:${entry.currentHash}:${entry.sequenceNumber}`;
+  private signAuditEntry(entry: EnhancedAuditEntry): string {
+    const signatureData = `${(entry as any).auditId}:${entry.currentHash}:${entry.sequenceNumber}`;
     
     return createHmac('sha256', this.auditSigningKey)
       .update(signatureData)
@@ -502,7 +502,7 @@ export class AuditService {
     // Implementation would store in secure audit database
     // For now, this is a placeholder
     logger.debug('Audit entry stored securely', {
-      auditId: entry.auditId,
+      auditId: (entry as any).auditId,
       sequenceNumber: entry.sequenceNumber
     });
   }
@@ -532,7 +532,7 @@ export class AuditService {
       this.auditCache.delete(firstKey);
     }
     
-    this.auditCache.set(entry.auditId, entry);
+    this.auditCache.set((entry as any).auditId, entry);
   }
 
   /**

@@ -10,7 +10,7 @@
 import { execSync } from 'child_process';
 import { existsSync, writeFileSync, chmodSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { logger } from '../core/logger';
+import { logger } from '../core/logging/logger';
 
 interface SecurityCheck {
   name: string;
@@ -76,7 +76,7 @@ export class SecurityHardening {
               finalStatus: 'FAILED'
             });
             
-            if (check.severity === 'HIGH') {
+            if ((check.severity as any) === 'HIGH' || (check.severity as any) === 'CRITICAL') {
               allPassed = false;
             }
           }

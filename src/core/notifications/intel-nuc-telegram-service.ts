@@ -354,7 +354,7 @@ ${systemHealthEmoji} <b>Avg CPU:</b> ${data.systemPerformance.cpuUsage.toFixed(1
 
 ⏱️ <b>Uptime:</b> ${this.formatUptime(data.uptime)}
 
-${this.getSystemHealthEmoji(data)} <i>System is ${this.getSystemHealthStatus(data)}</i>
+${this.getSystemHealthEmoji(Math.max(data.cpuUsage || 0, data.ramUsage || 0))} <i>System is ${this.getSystemHealthStatus(data)}</i>
     `.trim();
 
     // Create interactive keyboard for system management
@@ -659,7 +659,7 @@ ${pnlChange >= 0 ? '🚀 Strategy improved!' : '🔍 Further optimization needed
         notification.message,
         {
           parse_mode: notification.parseMode || 'HTML',
-          disable_web_page_preview: notification.disableWebPagePreview !== false,
+          link_preview_options: notification.disableWebPagePreview !== false ? { is_disabled: true } : undefined,
           disable_notification: notification.disableNotification,
           reply_markup: notification.replyMarkup
         }
@@ -683,11 +683,8 @@ ${pnlChange >= 0 ? '🚀 Strategy improved!' : '🔍 Further optimization needed
       throw new Error('TELEGRAM_BOT_TOKEN environment variable not found');
     }
 
-    try {
-      return await this.encryptionService.decrypt(encryptedToken);
-    } catch {
-      return encryptedToken;
-    }
+    // Return token directly from environment
+    return encryptedToken;
   }
 
   /**

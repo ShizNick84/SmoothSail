@@ -470,7 +470,7 @@ export class TunnelAutoReconnect extends EventEmitter {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // Attempt to establish new connection
-      await this.tunnelManager.establishTunnel(connectionId);
+      await this.tunnelManager.establishTunnel(connection.config);
 
       // Success
       attempt.success = true;

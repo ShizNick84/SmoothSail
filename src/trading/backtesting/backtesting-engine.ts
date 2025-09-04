@@ -451,7 +451,7 @@ export class BacktestingEngine extends EventEmitter {
     const trade: BacktestTrade = {
       id: uuidv4(),
       symbol: signal.symbol,
-      type: signal.type,
+      type: signal.type as 'BUY' | 'SELL',
       quantity: positionSize,
       entryPrice: executionPrice,
       entryTime: new Date(marketData.timestamp.getTime() + executionSim.latency),
@@ -862,12 +862,5 @@ export class BacktestingEngine extends EventEmitter {
     logger.info(`✅ Strategy ${strategy.name} validated with real data`);
   }
 
-  /**
-   * Stop running backtest
-   */
-  public stop(): void {
-    this.state.isRunning = false;
-    this.emit('progress', { status: 'CANCELLED', progress: 0, message: 'Backtesting stopped by user' });
-    logger.info('🛑 Backtesting stopped by user');
-  }
+  // Duplicate stop method removed
 }

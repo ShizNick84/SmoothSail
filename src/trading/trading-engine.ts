@@ -123,10 +123,13 @@ export class TradingEngine extends EventEmitter {
     this.orderManager = new OrderManager(this.gateIOClient);
     this.balanceManager = new BalanceManager(this.gateIOClient);
     this.riskManager = new PortfolioRiskManager({
-      maxPositionSize: config.riskSettings.maxPositionSize,
-      maxDailyLoss: config.riskSettings.maxDailyLoss,
-      stopLossPercent: config.riskSettings.stopLossPercent,
-      takeProfitPercent: config.riskSettings.takeProfitPercent
+      maxPortfolioCorrelation: 0.7,
+      maxSingleAssetExposure: config.riskSettings.maxPositionSize,
+      maxSectorExposure: 0.3,
+      minDiversificationScore: 0.6,
+      maxPortfolioBeta: 1.5,
+      rebalancingThreshold: 0.05,
+      targetAllocation: new Map([['BTC', 0.4], ['ETH', 0.3], ['others', 0.3]])
     });
 
     // Setup error handling listeners
@@ -294,7 +297,7 @@ export class TradingEngine extends EventEmitter {
       health.components.orderManager = this.orderManager.isHealthy();
       
       // Check balance manager
-      health.components.balanceManager = this.balanceManager.isHealthy();
+      health.components.balanceManager = await this.balanceManager.isHealthy();
       
       // Check risk manager
       health.components.riskManager = this.riskManager.isHealthy();
@@ -326,7 +329,7 @@ export class TradingEngine extends EventEmitter {
       const balance = await this.balanceManager.getTotalBalance();
 
       // Calculate statistics from order history
-      const completedTrades = orderHistory.filter(order => order.status === 'filled');
+      const completedTrades = orderHistory.filter(order => order.status === 'closed');
       const winningTrades = completedTrades.filter(order => {
         // This would need proper P&L calculation
         return true; // Placeholder
@@ -341,7 +344,7 @@ export class TradingEngine extends EventEmitter {
         dailyPnL: 0, // Would calculate from today's trades
         maxDrawdown: 0, // Would calculate from balance history
         sharpeRatio: 0, // Would calculate from returns
-        lastTradeTime: completedTrades.length > 0 ? completedTrades[completedTrades.length - 1].timestamp : null
+        lastTradeTime: completedTrades.length > 0 ? new Date(completedTrades[completedTrades.length - 1].update_time) : null
       };
 
       return stats;
@@ -361,7 +364,7 @@ export class TradingEngine extends EventEmitter {
       severity: ErrorSeverity.HIGH,
       message: 'Manual trade execution',
       component: 'TradingEngine',
-      context: { symbol, side, amount, price }
+      context: { symbol, operation: `${side}_trade` }
     }, async () => {
       this.logger.info('Executing manual trade', { symbol, side, amount, price });
 
@@ -391,10 +394,10 @@ export class TradingEngine extends EventEmitter {
 
       // Execute order
       const order = await this.orderManager.createOrder({
-        symbol,
+        currency_pair: symbol,
         side,
-        amount,
-        price,
+        amount: amount.toString(),
+        price: price?.toString(),
         type: price ? 'limit' : 'market'
       });
 
@@ -410,7 +413,7 @@ export class TradingEngine extends EventEmitter {
    */
   async getPortfolioStatus(): Promise<any> {
     try {
-      const balance = await this.balanceManager.getBalance();
+      const balance = await this.balanceManager.getBalance('USDT');
       const positions = await this.balanceManager.getPositions();
       const openOrders = await this.orderManager.getOpenOrders();
 

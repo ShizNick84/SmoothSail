@@ -37,6 +37,8 @@ export class DashboardServer {
   private aiEngine: any = null;
   private database: any = null;
   private security: any = null;
+  private sshTunnelManager: any = null;
+  private performanceIntegration: any = null;
   private isRunning: boolean = false;
 
   constructor(config: DashboardServerConfig) {
@@ -71,6 +73,14 @@ export class DashboardServer {
 
   setSecurity(security: any): void {
     this.security = security;
+  }
+
+  setSSHTunnelManager(sshTunnelManager: any): void {
+    this.sshTunnelManager = sshTunnelManager;
+  }
+
+  setPerformanceIntegration(performanceIntegration: any): void {
+    this.performanceIntegration = performanceIntegration;
   }
 
   async start(): Promise<void> {

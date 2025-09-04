@@ -109,17 +109,26 @@ export type {
  * Orchestrates all AI components for the trading system
  */
 export class AISystem {
-  private llmEngine: LLMEngine;
-  private modelManager: ModelManager;
-  private resourceMonitor: LLMResourceMonitor;
-  private fallbackManager: LLMFallbackManager;
-  private marketAnalyzer: MarketAnalyzer;
-  private anomalyDetector: AnomalyDetector;
-  private decisionExplainer: DecisionExplainer;
-  private adaptiveLearner: AdaptiveLearner;
+  private llmEngine: any;
+  private modelManager: any;
+  private resourceMonitor: any;
+  private fallbackManager: any;
+  private marketAnalyzer: any;
+  private anomalyDetector: any;
+  private decisionExplainer: any;
+  private adaptiveLearner: any;
 
   constructor(systemMonitor: any, securityManager: any) {
-    // Initialize core components
+    // Initialize core components - using dynamic imports to avoid circular dependencies
+    const { LLMEngine } = require('./llm-engine');
+    const { ModelManager } = require('./model-manager');
+    const { LLMResourceMonitor } = require('./resource-monitor');
+    const { LLMFallbackManager } = require('./fallback-manager');
+    const { MarketAnalyzer } = require('./market-analyzer');
+    const { AnomalyDetector } = require('./anomaly-detector');
+    const { DecisionExplainer } = require('./decision-explainer');
+    const { AdaptiveLearner } = require('./adaptive-learner');
+    
     this.llmEngine = new LLMEngine(systemMonitor, securityManager);
     this.modelManager = new ModelManager(systemMonitor, securityManager);
     this.resourceMonitor = new LLMResourceMonitor(systemMonitor);

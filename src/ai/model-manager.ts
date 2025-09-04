@@ -324,7 +324,7 @@ export class ModelManager extends EventEmitter {
       
       // Check if model fits in available memory
       const systemResources = await this.systemMonitor.getCurrentResources();
-      if (config.memoryRequirement > systemResources.memory.available) {
+      if (config.memoryRequirement > (systemResources.ram?.available || 0)) {
         issues.push('Model requires more memory than available');
         recommendations.push('Free up memory or use a smaller model');
       }
@@ -381,7 +381,7 @@ export class ModelManager extends EventEmitter {
         
         // Check if we have enough disk space
         const systemResources = await this.systemMonitor.getCurrentResources();
-        if (systemResources.disk.available < downloadConfig.fileSize * 1.2) { // 20% buffer
+        if ((systemResources.ssd?.free || 0) < downloadConfig.fileSize * 1.2) { // 20% buffer
           logger.warn(`⚠️ Insufficient disk space for ${downloadConfig.modelName}`);
           continue;
         }
@@ -412,7 +412,7 @@ export class ModelManager extends EventEmitter {
       logger.info('🎯 Selecting optimal model...');
 
       const systemResources = await this.systemMonitor.getCurrentResources();
-      const availableMemory = systemResources.memory.available;
+      const availableMemory = systemResources.ram?.available || 0;
 
       // Filter healthy models that fit in memory
       const viableModels = Array.from(this.availableModels.entries())
@@ -499,7 +499,7 @@ export class ModelManager extends EventEmitter {
 
       // Check system resources
       const systemResources = await this.systemMonitor.getCurrentResources();
-      if (config.memoryRequirement > systemResources.memory.available) {
+      if (config.memoryRequirement > (systemResources.ram?.available || 0)) {
         throw new Error(`Insufficient memory to load ${modelName}`);
       }
 

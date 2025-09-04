@@ -26,7 +26,7 @@ import { LLMEngine } from './llm-engine';
 import { MarketAnalyzer } from './market-analyzer';
 import { AnomalyDetector } from './anomaly-detector';
 import { AdaptiveLearner } from './adaptive-learner';
-import { ResourceMonitor } from './resource-monitor';
+import { LLMResourceMonitor } from './resource-monitor';
 
 /**
  * AI Engine configuration interface
@@ -130,7 +130,7 @@ export class AIEngine extends EventEmitter {
   private marketAnalyzer: MarketAnalyzer;
   private anomalyDetector: AnomalyDetector;
   private adaptiveLearner: AdaptiveLearner;
-  private resourceMonitor: ResourceMonitor;
+  private resourceMonitor: LLMResourceMonitor;
   private isInitialized: boolean = false;
   private isRunning: boolean = false;
   private analysisInterval: NodeJS.Timeout | null = null;
@@ -153,7 +153,7 @@ export class AIEngine extends EventEmitter {
     this.marketAnalyzer = new MarketAnalyzer(this.llmEngine);
     this.anomalyDetector = new AnomalyDetector();
     this.adaptiveLearner = new AdaptiveLearner();
-    this.resourceMonitor = new ResourceMonitor(config.resourceLimits);
+    this.resourceMonitor = new LLMResourceMonitor(config.resourceLimits);
 
     this.logger.info('AI Engine created', {
       provider: config.llmProvider,
